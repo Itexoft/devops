@@ -1,0 +1,248 @@
+name: cpp-multi-rid-build
+
+on:
+  workflow_call:
+    inputs:
+      project_name:
+        type: string
+        required: true
+      build_targets:
+        type: string
+        required: true
+      cmake_common_extra:
+        type: string
+        required: false
+        default: ""
+      cmake_build_type:
+        type: string
+        required: false
+        default: Release
+      debug_symbols:
+        type: string
+        required: false
+        default: "false"
+      cmake_cxx_standard:
+        type: string
+        required: false
+        default: "17"
+
+env:
+  PROJECT_NAME: ${{ inputs.project_name }}
+  ARTIFACTS_DIR: artifacts
+  BUILD_TARGETS: ${{ inputs.build_targets }}
+  DEBUG_SYMBOLS: ${{ inputs.debug_symbols }}
+  CMAKE_BUILD_TYPE: ${{ inputs.cmake_build_type }}
+  CMAKE_CXX_STANDARD: ${{ inputs.cmake_cxx_standard }}
+  CMAKE_COMMON_ARGS: >-
+    -DCMAKE_CXX_STANDARD_REQUIRED=ON
+    -DBUILD_TESTING=OFF
+    -DDISABLE_CPP03_SYNTAX_CHECK=ON
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    ${{ inputs.cmake_common_extra }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64, ARM64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install dlfcn-win32
+        shell: pwsh
+        run: |
+          $triplet = ("${{ matrix.arch }}-windows").ToLower()
+          vcpkg install dlfcn-win32 --triplet $triplet
+          "VCPKG_INSTALLATION_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "VCPKG_TRIPLET=$triplet" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "VCPKG_INCLUDE=$env:VCPKG_INSTALLATION_ROOT\installed\$triplet\include" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "VCPKG_LIB=$env:VCPKG_INSTALLATION_ROOT\installed\$triplet\lib" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: check-lib-files
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path $env:VCPKG_LIB -Filter "*.lib" | Select-Object -ExpandProperty Name
+
+      - name: configure-ninja
+        shell: pwsh
+        run: |
+          $absOut = Join-Path (Get-Location) $env:ARTIFACTS_DIR
+          New-Item -ItemType Directory -Force -Path $absOut
+          $dbg = if ($env:DEBUG_SYMBOLS -eq 'true') { '/Zi' } else { '' }
+          $opt = if ($env:CMAKE_BUILD_TYPE -eq 'Release') { '/O2 /Gy' } else { '' }
+          $linkerFlags = if ($env:DEBUG_SYMBOLS -eq 'true') { '/DEBUG /OPT:REF /OPT:ICF' } else { '/OPT:REF /OPT:ICF' }
+          $defs = '/D_CRT_DECLARE_NONSTDC_NAMES=1 /D_CRT_NONSTDC_NO_DEPRECATE=1 /D_CRT_SECURE_NO_WARNINGS=1 /Dpopen=_popen /Dpclose=_pclose'
+          $dlfcnLib = "$env:VCPKG_LIB\dlfcn-win32.lib"
+          if (-not (Test-Path $dlfcnLib)) {
+            $dlfcnLib = (Get-ChildItem -Path $env:VCPKG_LIB -Filter "dlfcn*.lib" | Select-Object -First 1).FullName
+            if (-not $dlfcnLib) {
+              $dlfcnLib = (Get-ChildItem -Path $env:VCPKG_LIB -Filter "*.lib" | Select-Object -First 1).FullName
+            }
+          }
+          cmake -S . -B build/${{ matrix.arch }} -G Ninja `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET="$env:VCPKG_TRIPLET" `
+            -DCMAKE_PREFIX_PATH="$env:VCPKG_INSTALLATION_ROOT\installed\$env:VCPKG_TRIPLET" `
+            -DCMAKE_INCLUDE_PATH="$env:VCPKG_INCLUDE" `
+            -DCMAKE_LIBRARY_PATH="$env:VCPKG_LIB" `
+            -DCMAKE_C_COMPILER=clang-cl `
+            -DCMAKE_CXX_COMPILER=clang-cl `
+            -DCMAKE_C_FLAGS="/w $opt $dbg $defs /I$env:VCPKG_INCLUDE" `
+            -DCMAKE_CXX_FLAGS="/w /EHsc $opt $dbg /std:c++${{ env.CMAKE_CXX_STANDARD }} $defs /I$env:VCPKG_INCLUDE" `
+            -DCMAKE_EXE_LINKER_FLAGS="/LIBPATH:$env:VCPKG_LIB $dlfcnLib $linkerFlags" `
+            -DCMAKE_SHARED_LINKER_FLAGS="/LIBPATH:$env:VCPKG_LIB $dlfcnLib $linkerFlags" `
+            -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE="$absOut" `
+            -DCMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE="$absOut" `
+            -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE="$absOut" `
+            -DVCPKG_APPLOCAL_DEPS=ON `
+            -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} `
+            -DCMAKE_CXX_STANDARD=${{ env.CMAKE_CXX_STANDARD }} `
+            ${{ env.CMAKE_COMMON_ARGS }}
+
+      - name: build-ninja
+        shell: pwsh
+        run: |
+          foreach ($t in $env:BUILD_TARGETS.Split(',')) {
+            cmake --build build/${{ matrix.arch }} --parallel --config ${{ env.CMAKE_BUILD_TYPE }} --target $t
+          }
+
+      - name: copy-compile-commands
+        shell: pwsh
+        run: |
+          Copy-Item "build/${{ matrix.arch }}/compile_commands.json" "$env:ARTIFACTS_DIR/${{ matrix.arch }}-win-compile_commands.json"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-win-${{ matrix.arch }}
+          path: ${{ env.ARTIFACTS_DIR }}/**
+
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        triple: [x86_64-linux-gnu, aarch64-linux-gnu]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.12.0
+          use-cache: true
+
+      - name: create-ccc
+        run: |
+          mkdir -p $HOME/bin
+          printf '#!/bin/sh\nexec zig cc "$@"\n' > $HOME/bin/zigcc
+          printf '#!/bin/sh\nexec zig c++ "$@"\n' > $HOME/bin/zigcxx
+          chmod +x $HOME/bin/zigcc $HOME/bin/zigcxx
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: configure
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACTS_DIR"
+          absOut=$(pwd)/$ARTIFACTS_DIR
+          DBG=$([ "${{ env.DEBUG_SYMBOLS }}" = "true" ] && echo "-g" || echo "-g0")
+          CFLAGS_BASE="-O2 $DBG -ffunction-sections -fdata-sections -w -fexceptions"
+          CXXFLAGS_BASE="-O2 $DBG -ffunction-sections -fdata-sections -w -fexceptions -std=c++${{ env.CMAKE_CXX_STANDARD }}"
+          export CFLAGS="$CFLAGS_BASE"
+          export CXXFLAGS="$CXXFLAGS_BASE"
+          cmake -S . -B build/${{ matrix.triple }} -G Ninja \
+            -DCMAKE_C_COMPILER=zigcc \
+            -DCMAKE_CXX_COMPILER=zigcxx \
+            -DCMAKE_C_COMPILER_TARGET=${{ matrix.triple }} \
+            -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.triple }} \
+            -DCMAKE_EXE_LINKER_FLAGS="-Wl,-z,origin,-rpath,'$$ORIGIN'" \
+            -DCMAKE_INSTALL_RPATH="$$ORIGIN" \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+            -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--gc-sections" \
+            -DCMAKE_RUNTIME_OUTPUT_DIRECTORY="$absOut" \
+            -DCMAKE_LIBRARY_OUTPUT_DIRECTORY="$absOut" \
+            -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY="$absOut" \
+            -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
+            -DCMAKE_CXX_STANDARD=${{ env.CMAKE_CXX_STANDARD }} \
+            ${{ env.CMAKE_COMMON_ARGS }}
+
+      - name: build
+        run: |
+          IFS=',' read -ra _targets <<< "${{ env.BUILD_TARGETS }}"
+          for tgt in "${_targets[@]}"; do
+            cmake --build build/${{ matrix.triple }} --parallel --config ${{ env.CMAKE_BUILD_TYPE }} --target "$tgt"
+          done
+
+      - name: split-debug
+        if: env.DEBUG_SYMBOLS == 'true'
+        run: |
+          set -euo pipefail
+          shopt -s nullglob globstar
+          OBJCOPY=$(command -v llvm-objcopy-18 || command -v llvm-objcopy || command -v objcopy)
+          for lib in **/*.so; do
+            "$OBJCOPY" --only-keep-debug "$lib" "$lib.debug"
+            "$OBJCOPY" --add-gnu-debuglink="$lib.debug" "$lib"
+          done
+
+      - name: copy-compile-commands
+        run: |
+          cp "build/${{ matrix.triple }}/compile_commands.json" "$ARTIFACTS_DIR/${{ matrix.triple }}-linux-compile_commands.json"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-linux-${{ matrix.triple }}
+          path: ${{ env.ARTIFACTS_DIR }}/**
+
+  macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [x86_64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: configure
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACTS_DIR"
+          absOut=$(pwd)/$ARTIFACTS_DIR
+          DBG=$([ "${{ env.DEBUG_SYMBOLS }}" = "true" ] && echo "-g" || echo "-g0")
+          OPT="-O2 -ffunction-sections -fdata-sections"
+          cmake -S . -B build/${{ matrix.arch }} -G Ninja \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+            -DCMAKE_C_FLAGS="$OPT $DBG -w -fexceptions" \
+            -DCMAKE_CXX_FLAGS="$OPT $DBG -w -fexceptions -std=c++${{ env.CMAKE_CXX_STANDARD }}" \
+            -DCMAKE_MACOSX_RPATH=ON \
+            -DCMAKE_INSTALL_RPATH="@loader_path" \
+            -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+            -DCMAKE_EXE_LINKER_FLAGS="-Wl,-rpath,@loader_path -Wl,-dead_strip" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-dead_strip" \
+            -DCMAKE_RUNTIME_OUTPUT_DIRECTORY="$absOut" \
+            -DCMAKE_LIBRARY_OUTPUT_DIRECTORY="$absOut" \
+            -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY="$absOut" \
+            -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
+            -DCMAKE_CXX_STANDARD=${{ env.CMAKE_CXX_STANDARD }} \
+            ${{ env.CMAKE_COMMON_ARGS }}
+
+      - name: build
+        run: |
+          IFS=',' read -ra _targets <<< "${{ env.BUILD_TARGETS }}"
+          for tgt in "${_targets[@]}"; do
+            cmake --build build/${{ matrix.arch }} --parallel --config ${{ env.CMAKE_BUILD_TYPE }} --target "$tgt"
+          done
+
+      - name: dsym
+        if: env.DEBUG_SYMBOLS == 'true'
+        run: |
+          shopt -s nullglob
+          for dylib in "$ARTIFACTS_DIR"/*.dylib; do
+            dsymutil "$dylib"
+          done
+
+      - name: copy-compile-commands
+        run: |
+          cp "build/${{ matrix.arch }}/compile_commands.json" "$ARTIFACTS_DIR/${{ matrix.arch }}-osx-compile_commands.json"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-osx-${{ matrix.arch }}
+          path: ${{ env.ARTIFACTS_DIR }}/**

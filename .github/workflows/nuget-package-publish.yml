@@ -1,0 +1,198 @@
+name: nuget-package-publish
+
+on:
+  workflow_call:
+    inputs:
+      project_name:
+        type: string
+        required: true
+      csproj_path:
+        type: string
+        required: true
+      build_workflow:
+        type: string
+        required: true
+        default: ""
+      extra_paths:
+        type: string
+        required: false
+        default: ""
+      publish_branch:
+        type: string
+        required: false
+        default: "master"
+      publish:
+        type: boolean
+        required: false
+        default: false
+      nuget_source:
+        type: string
+        required: false
+        default: "https://api.nuget.org/v3/index.json"
+    secrets:
+      NUGET_API_KEY:
+        required: true
+
+env:
+  NUGET_SOURCE: ${{ inputs.nuget_source }}
+  CSPROJ_PATH: ${{ inputs.csproj_path }}
+  BUILD_WORKFLOW: ${{ inputs.build_workflow }}
+  PUBLISH_ENABLED: ${{ inputs.publish }}
+  ARTIFACTS_DIR: artifacts
+  PROJECT_NAME: ${{ inputs.project_name }}
+  EXTRA_PATHS: "${{ inputs.extra_paths }},LICENSE,LICENSE.md,README.md,NOTICE.md"
+  PUBLISH_BRANCH: ${{ inputs.publish_branch }}
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: determine artifact run id
+        id: run_id
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RID=$(gh api "/repos/${{ github.repository }}/actions/workflows/${{ env.BUILD_WORKFLOW }}.yml/runs?status=success&per_page=1" --jq '.workflow_runs[0].id')
+            [ -n "$RID" ] || { echo "::error::No successful ${{ env.BUILD_WORKFLOW }} runs found"; RID="none"; }
+          else
+            RID=${{ github.event.workflow_run.id }}
+          fi
+          echo "run_id=$RID" >> $GITHUB_OUTPUT
+
+      - uses: actions/download-artifact@v4
+        if: steps.run_id.outputs.run_id != 'none'
+        continue-on-error: true
+        with:
+          path: ${{ env.ARTIFACTS_DIR }}
+          run-id: ${{ steps.run_id.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Validate artifacts
+        id: validate_artifacts
+        run: |
+          count=$(find ${{ env.ARTIFACTS_DIR }} -type f | wc -l)
+          [ "$count" -gt 0 ] || { echo "::error::No artifacts found"; exit 1; }
+          echo "has_artifacts=true" >> $GITHUB_OUTPUT
+
+      - name: Check version change
+        id: version_check
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          [ -f "${{ env.CSPROJ_PATH }}" ] || { echo "::error::Project file not found"; exit 1; }
+
+          cur=$(grep -o '<Version>.*</Version>' "${{ env.CSPROJ_PATH }}" | sed 's/<Version>\(.*\)<\/Version>/\1/')
+          [ -n "$cur" ] || { echo "version_specified=false" >> $GITHUB_OUTPUT; exit 0; }
+          echo "version_specified=true" >> $GITHUB_OUTPUT
+          echo "current_version=$cur" >> $GITHUB_OUTPUT
+
+          if [ "${BRANCH_NAME}" != "${{ env.PUBLISH_BRANCH }}" ]; then
+            echo "is_publish_branch=false" >> $GITHUB_OUTPUT
+            echo "can_publish=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "is_publish_branch=true" >> $GITHUB_OUTPUT
+
+          git fetch --quiet
+          if git cat-file -e HEAD~1^{commit} 2>/dev/null; then
+            prev=$(git show HEAD~1:"${{ env.CSPROJ_PATH }}" 2>/dev/null | grep -o '<Version>.*</Version>' | sed 's/<Version>\(.*\)<\/Version>/\1/')
+          else
+            prev=""
+          fi
+
+          if [ "$prev" != "$cur" ]; then
+            echo "version_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "version_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+          if [ -n "${{ secrets.NUGET_API_KEY }}" ] && [ "$prev" != "$cur" ]; then
+            echo "api_key_available=true" >> $GITHUB_OUTPUT
+            echo "can_publish=true" >> $GITHUB_OUTPUT
+          else
+            echo "api_key_available=false" >> $GITHUB_OUTPUT
+            echo "can_publish=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: prepare
+        run: |
+          set -e
+          shopt -s nullglob dotglob
+
+          mkdir -p pkg
+          src_dir=$(dirname "${{ env.CSPROJ_PATH }}")
+          cp -R "$src_dir"/. pkg/
+
+          IFS=',' read -ra add <<< "${{ env.EXTRA_PATHS }}"
+          for p in "${add[@]}"; do
+            [ -z "$p" ] || { [ -e "$p" ] && cp -R "$p" pkg/; }
+          done
+
+          prefix="${{ env.PROJECT_NAME }}"
+          mkdir -p pkg/runtimes
+
+          for dir in ${{ env.ARTIFACTS_DIR }}/*; do
+            [ -d "$dir" ] || continue
+            comp_json=("$dir"/*compile_commands.json)
+            [ -e "${comp_json[0]}" ] || continue
+
+            base=$(basename "$dir")
+            [[ "$base" == "$prefix"-* ]] || continue
+            rid=${base#"$prefix"-}
+            rid=${rid,,}
+            rid=${rid//_/-}
+
+            native="pkg/runtimes/$rid/native"
+            mkdir -p "$native"
+            for f in "$dir"/*; do
+              [[ "$f" == *compile_commands.json ]] && continue
+              cp -R "$f" "$native/"
+            done
+          done
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.x
+
+      - name: pack
+        working-directory: pkg
+        run: |
+          csproj=$(basename "${{ env.CSPROJ_PATH }}")
+          [ -f "$csproj" ] || { echo "::error::CSProj missing in package dir"; exit 1; }
+          dotnet pack "$csproj" -c Release -o ../${{ env.ARTIFACTS_DIR }}
+
+      - name: Publish to NuGet
+        if: ${{ steps.version_check.outputs.can_publish == 'true' && env.PUBLISH_ENABLED == 'true' }}
+        run: |
+          for nupkg in ${{ env.ARTIFACTS_DIR }}/*.nupkg; do
+            [ -f "$nupkg" ] || { echo "::error::No packages for push"; exit 1; }
+            dotnet nuget push "$nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source ${{ env.NUGET_SOURCE }} --skip-duplicate
+          done
+
+      - name: Report publish skip reason
+        if: ${{ steps.version_check.outputs.can_publish != 'true' || env.PUBLISH_ENABLED != 'true' }}
+        run: |
+          if [ "${{ env.PUBLISH_ENABLED }}" != "true" ]; then
+            echo "::warning::Publish skipped: disabled by flag"
+          elif [ "${{ steps.version_check.outputs.version_specified }}" != "true" ]; then
+            echo "::warning::Publish skipped: version not specified"
+          elif [ "${{ steps.version_check.outputs.is_publish_branch }}" != "true" ]; then
+            echo "::warning::Publish skipped: not on ${{ env.PUBLISH_BRANCH }} branch"
+          elif [ "${{ steps.version_check.outputs.version_changed }}" != "true" ]; then
+            echo "::warning::Publish skipped: version unchanged"
+          elif [ "${{ steps.version_check.outputs.api_key_available }}" != "true" ]; then
+            echo "::warning::Publish skipped: NuGet API key missing"
+          else
+            echo "::warning::Publish skipped: can_publish flag false"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-nuget-packages
+          path: ${{ env.ARTIFACTS_DIR }}/*.nupkg
