@@ -1,0 +1,92 @@
+name: autotools-multi-rid-build
+
+on:
+  workflow_call:
+    inputs:
+      project_name:
+        type: string
+        required: true
+      configure_args:
+        type: string
+        required: false
+        default: ""
+      make_targets:
+        type: string
+        required: false
+        default: ""
+      debug_symbols:
+        type: string
+        required: false
+        default: "false"
+
+env:
+  PROJECT_NAME: ${{ inputs.project_name }}
+  ARTIFACTS_DIR: artifacts
+  CONFIGURE_ARGS: ${{ inputs.configure_args }}
+  MAKE_TARGETS: ${{ inputs.make_targets }}
+  DEBUG_SYMBOLS: ${{ inputs.debug_symbols }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: base-devel mingw-w64-x86_64-toolchain
+          msystem: MINGW64
+          path-type: minimal
+      - name: build
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACTS_DIR"
+          DBG=$([ "$DEBUG_SYMBOLS" = "true" ] && echo "-g" || echo "-g0")
+          export CFLAGS="-O2 $DBG"
+          export CXXFLAGS="-O2 $DBG"
+          ./configure $CONFIGURE_ARGS
+          if [ -n "$MAKE_TARGETS" ]; then make $MAKE_TARGETS; else make; fi
+          make DESTDIR="$(pwd)/$ARTIFACTS_DIR" install
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-win
+          path: ${{ env.ARTIFACTS_DIR }}/**
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACTS_DIR"
+          DBG=$([ "$DEBUG_SYMBOLS" = "true" ] && echo "-g" || echo "-g0")
+          export CFLAGS="-O2 $DBG"
+          export CXXFLAGS="-O2 $DBG"
+          ./configure $CONFIGURE_ARGS
+          if [ -n "$MAKE_TARGETS" ]; then make $MAKE_TARGETS; else make; fi
+          make DESTDIR="$(pwd)/$ARTIFACTS_DIR" install
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-linux
+          path: ${{ env.ARTIFACTS_DIR }}/**
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACTS_DIR"
+          DBG=$([ "$DEBUG_SYMBOLS" = "true" ] && echo "-g" || echo "-g0")
+          export CFLAGS="-O2 $DBG"
+          export CXXFLAGS="-O2 $DBG"
+          ./configure $CONFIGURE_ARGS
+          if [ -n "$MAKE_TARGETS" ]; then make $MAKE_TARGETS; else make; fi
+          make DESTDIR="$(pwd)/$ARTIFACTS_DIR" install
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-osx
+          path: ${{ env.ARTIFACTS_DIR }}/**
