@@ -1,0 +1,335 @@
+name: autotools-multi-rid-build
+
+on:
+  workflow_call:
+    inputs:
+      project_name:
+        type: string
+        required: true
+      configure_args:
+        type: string
+        required: false
+        default: ""
+      make_targets:
+        type: string
+        required: false
+        default: ""
+      debug_symbols:
+        type: string
+        required: false
+        default: "false"
+      autoreconf:
+        type: string
+        required: false
+        default: "false"
+      configure_path:
+        type: string
+        required: false
+        default: "./configure"
+      build_dir:
+        type: string
+        required: false
+        default: ""
+      checkout_submodules:
+        type: string
+        required: false
+        default: "false"
+      apt_packages:
+        type: string
+        required: false
+        default: ""
+      brew_packages:
+        type: string
+        required: false
+        default: ""
+      msys2_packages:
+        type: string
+        required: false
+        default: ""
+      pre_setup_script_linux:
+        type: string
+        required: false
+        default: ""
+      pre_setup_script_macos:
+        type: string
+        required: false
+        default: ""
+      pre_setup_script_windows:
+        type: string
+        required: false
+        default: ""
+      pre_configure_script:
+        type: string
+        required: false
+        default: ""
+      post_build_script:
+        type: string
+        required: false
+        default: ""
+      extra_env_linux:
+        type: string
+        required: false
+        default: ""
+      extra_env_macos:
+        type: string
+        required: false
+        default: ""
+      extra_env_windows:
+        type: string
+        required: false
+        default: ""
+      enable_linux:
+        type: string
+        required: false
+        default: "true"
+      enable_macos:
+        type: string
+        required: false
+        default: "true"
+      enable_windows:
+        type: string
+        required: false
+        default: "true"
+      build_cmd:
+        type: string
+        required: false
+        default: ""
+      install_cmd:
+        type: string
+        required: false
+        default: ""
+      clear_toolchain_env:
+        type: string
+        required: false
+        default: "false"
+      default_cflags:
+        type: string
+        required: false
+        default: ""
+      default_cxxflags:
+        type: string
+        required: false
+        default: ""
+      configure_env:
+        type: string
+        required: false
+        default: ""
+
+env:
+  PROJECT_NAME: ${{ inputs.project_name }}
+  ARTIFACTS_DIR: artifacts
+  CONFIGURE_ARGS: ${{ inputs.configure_args }}
+  MAKE_TARGETS: ${{ inputs.make_targets }}
+  DEBUG_SYMBOLS: ${{ inputs.debug_symbols }}
+  CONFIGURE_PATH: ${{ inputs.configure_path }}
+  BUILD_DIR: ${{ inputs.build_dir }}
+  BUILD_CMD: ${{ inputs.build_cmd }}
+  INSTALL_CMD: ${{ inputs.install_cmd }}
+  CLEAR_TOOLCHAIN_ENV: ${{ inputs.clear_toolchain_env }}
+  DEFAULT_CFLAGS: ${{ inputs.default_cflags }}
+  DEFAULT_CXXFLAGS: ${{ inputs.default_cxxflags }}
+  CONFIGURE_ENV: ${{ inputs.configure_env }}
+
+jobs:
+  windows:
+    if: ${{ inputs.enable_windows == 'true' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: ${{ inputs.checkout_submodules }}
+      - uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: ${{ format('base-devel mingw-w64-x86_64-toolchain {0}', inputs.msys2_packages) }}
+          msystem: MINGW64
+          path-type: strict
+      - name: pre-setup
+        if: ${{ inputs.pre_setup_script_windows != '' }}
+        shell: msys2 {0}
+        run: ${{ inputs.pre_setup_script_windows }}
+      - name: extra-env
+        if: ${{ inputs.extra_env_windows != '' }}
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then echo "$line" >> "$GITHUB_ENV"; fi
+          done <<'EOF'
+          ${{ inputs.extra_env_windows }}
+          EOF
+      - name: configure-env
+        if: ${{ inputs.configure_env != '' }}
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then echo "$line" >> "$GITHUB_ENV"; fi
+          done <<'EOF'
+          ${{ inputs.configure_env }}
+          EOF
+      - name: autoreconf
+        if: ${{ inputs.autoreconf == 'true' && inputs.build_cmd == '' }}
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          autoreconf -fi
+      - name: pre-configure
+        if: ${{ inputs.pre_configure_script != '' }}
+        shell: msys2 {0}
+        run: ${{ inputs.pre_configure_script }}
+      - name: build
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACTS_DIR"
+          if [ "$CLEAR_TOOLCHAIN_ENV" = "true" ]; then unset CFLAGS CXXFLAGS CPPFLAGS LDFLAGS; fi
+          DBG=$([ "$DEBUG_SYMBOLS" = "true" ] && echo "-g" || echo "")
+          if [ -z "${CFLAGS:-}" ] && [ -n "$DEFAULT_CFLAGS" ]; then export CFLAGS="$DEFAULT_CFLAGS $DBG"; fi
+          if [ -z "${CXXFLAGS:-}" ] && [ -n "$DEFAULT_CXXFLAGS" ]; then export CXXFLAGS="$DEFAULT_CXXFLAGS $DBG"; fi
+          if [ -n "$BUILD_DIR" ]; then mkdir -p "$BUILD_DIR"; cd "$BUILD_DIR"; fi
+          if [ -n "$BUILD_CMD" ]; then
+            eval "$BUILD_CMD"
+          else
+            "$CONFIGURE_PATH" $CONFIGURE_ARGS
+            if [ -n "$MAKE_TARGETS" ]; then make $MAKE_TARGETS; else make; fi
+            if [ -n "$INSTALL_CMD" ]; then eval "$INSTALL_CMD"; else make DESTDIR="$GITHUB_WORKSPACE/$ARTIFACTS_DIR" install; fi
+          fi
+      - name: post-build
+        if: ${{ inputs.post_build_script != '' }}
+        shell: msys2 {0}
+        run: ${{ inputs.post_build_script }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-win
+          path: ${{ env.ARTIFACTS_DIR }}/**
+
+  linux:
+    if: ${{ inputs.enable_linux == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: ${{ inputs.checkout_submodules }}
+      - name: apt-deps
+        if: ${{ inputs.apt_packages != '' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ inputs.apt_packages }}
+      - name: pre-setup
+        if: ${{ inputs.pre_setup_script_linux != '' }}
+        run: ${{ inputs.pre_setup_script_linux }}
+      - name: extra-env
+        if: ${{ inputs.extra_env_linux != '' }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then echo "$line" >> "$GITHUB_ENV"; fi
+          done <<'EOF'
+          ${{ inputs.extra_env_linux }}
+          EOF
+      - name: configure-env
+        if: ${{ inputs.configure_env != '' }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then echo "$line" >> "$GITHUB_ENV"; fi
+          done <<'EOF'
+          ${{ inputs.configure_env }}
+          EOF
+      - name: autoreconf
+        if: ${{ inputs.autoreconf == 'true' && inputs.build_cmd == '' }}
+        run: |
+          set -euo pipefail
+          autoreconf -fi
+      - name: pre-configure
+        if: ${{ inputs.pre_configure_script != '' }}
+        run: ${{ inputs.pre_configure_script }}
+      - name: build
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACTS_DIR"
+          if [ "$CLEAR_TOOLCHAIN_ENV" = "true" ]; then unset CFLAGS CXXFLAGS CPPFLAGS LDFLAGS; fi
+          DBG=$([ "$DEBUG_SYMBOLS" = "true" ] && echo "-g" || echo "")
+          if [ -z "${CFLAGS:-}" ] && [ -n "$DEFAULT_CFLAGS" ]; then export CFLAGS="$DEFAULT_CFLAGS $DBG"; fi
+          if [ -z "${CXXFLAGS:-}" ] && [ -n "$DEFAULT_CXXFLAGS" ]; then export CXXFLAGS="$DEFAULT_CXXFLAGS $DBG"; fi
+          if [ -n "$BUILD_DIR" ]; then mkdir -p "$BUILD_DIR"; cd "$BUILD_DIR"; fi
+          if [ -n "$BUILD_CMD" ]; then
+            eval "$BUILD_CMD"
+          else
+            "$CONFIGURE_PATH" $CONFIGURE_ARGS
+            if [ -n "$MAKE_TARGETS" ]; then make $MAKE_TARGETS; else make; fi
+            if [ -n "$INSTALL_CMD" ]; then eval "$INSTALL_CMD"; else make DESTDIR="$GITHUB_WORKSPACE/$ARTIFACTS_DIR" install; fi
+          fi
+      - name: post-build
+        if: ${{ inputs.post_build_script != '' }}
+        run: ${{ inputs.post_build_script }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-linux
+          path: ${{ env.ARTIFACTS_DIR }}/**
+
+  macos:
+    if: ${{ inputs.enable_macos == 'true' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: ${{ inputs.checkout_submodules }}
+      - name: brew-deps
+        if: ${{ inputs.brew_packages != '' }}
+        run: |
+          brew update
+          brew install ${{ inputs.brew_packages }}
+      - name: pre-setup
+        if: ${{ inputs.pre_setup_script_macos != '' }}
+        run: ${{ inputs.pre_setup_script_macos }}
+      - name: extra-env
+        if: ${{ inputs.extra_env_macos != '' }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then echo "$line" >> "$GITHUB_ENV"; fi
+          done <<'EOF'
+          ${{ inputs.extra_env_macos }}
+          EOF
+      - name: configure-env
+        if: ${{ inputs.configure_env != '' }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then echo "$line" >> "$GITHUB_ENV"; fi
+          done <<'EOF'
+          ${{ inputs.configure_env }}
+          EOF
+      - name: autoreconf
+        if: ${{ inputs.autoreconf == 'true' && inputs.build_cmd == '' }}
+        run: |
+          set -euo pipefail
+          autoreconf -fi
+      - name: pre-configure
+        if: ${{ inputs.pre_configure_script != '' }}
+        run: ${{ inputs.pre_configure_script }}
+      - name: build
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACTS_DIR"
+          if [ "$CLEAR_TOOLCHAIN_ENV" = "true" ]; then unset CFLAGS CXXFLAGS CPPFLAGS LDFLAGS; fi
+          DBG=$([ "$DEBUG_SYMBOLS" = "true" ] && echo "-g" || echo "")
+          if [ -z "${CFLAGS:-}" ] && [ -n "$DEFAULT_CFLAGS" ]; then export CFLAGS="$DEFAULT_CFLAGS $DBG"; fi
+          if [ -z "${CXXFLAGS:-}" ] && [ -n "$DEFAULT_CXXFLAGS" ]; then export CXXFLAGS="$DEFAULT_CXXFLAGS $DBG"; fi
+          if [ -n "$BUILD_DIR" ]; then mkdir -p "$BUILD_DIR"; cd "$BUILD_DIR"; fi
+          if [ -n "$BUILD_CMD" ]; then
+            eval "$BUILD_CMD"
+          else
+            "$CONFIGURE_PATH" $CONFIGURE_ARGS
+            if [ -n "$MAKE_TARGETS" ]; then make $MAKE_TARGETS; else make; fi
+            if [ -n "$INSTALL_CMD" ]; then eval "$INSTALL_CMD"; else make DESTDIR="$GITHUB_WORKSPACE/$ARTIFACTS_DIR" install; fi
+          fi
+      - name: post-build
+        if: ${{ inputs.post_build_script != '' }}
+        run: ${{ inputs.post_build_script }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-osx
+          path: ${{ env.ARTIFACTS_DIR }}/**
