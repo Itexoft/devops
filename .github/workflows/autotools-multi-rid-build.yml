@@ -18,6 +18,78 @@ on:
         type: string
         required: false
         default: "false"
+      autoreconf:
+        type: string
+        required: false
+        default: "false"
+      configure_path:
+        type: string
+        required: false
+        default: "./configure"
+      build_dir:
+        type: string
+        required: false
+        default: ""
+      checkout_submodules:
+        type: string
+        required: false
+        default: "false"
+      apt_packages:
+        type: string
+        required: false
+        default: ""
+      brew_packages:
+        type: string
+        required: false
+        default: ""
+      msys2_packages:
+        type: string
+        required: false
+        default: ""
+      pre_setup_script_linux:
+        type: string
+        required: false
+        default: ""
+      pre_setup_script_macos:
+        type: string
+        required: false
+        default: ""
+      pre_setup_script_windows:
+        type: string
+        required: false
+        default: ""
+      pre_configure_script:
+        type: string
+        required: false
+        default: ""
+      post_build_script:
+        type: string
+        required: false
+        default: ""
+      extra_env_linux:
+        type: string
+        required: false
+        default: ""
+      extra_env_macos:
+        type: string
+        required: false
+        default: ""
+      extra_env_windows:
+        type: string
+        required: false
+        default: ""
+      enable_linux:
+        type: string
+        required: false
+        default: "true"
+      enable_macos:
+        type: string
+        required: false
+        default: "true"
+      enable_windows:
+        type: string
+        required: false
+        default: "true"
 
 env:
   PROJECT_NAME: ${{ inputs.project_name }}
@@ -25,18 +97,47 @@ env:
   CONFIGURE_ARGS: ${{ inputs.configure_args }}
   MAKE_TARGETS: ${{ inputs.make_targets }}
   DEBUG_SYMBOLS: ${{ inputs.debug_symbols }}
+  CONFIGURE_PATH: ${{ inputs.configure_path }}
+  BUILD_DIR: ${{ inputs.build_dir }}
 
 jobs:
   windows:
+    if: ${{ inputs.enable_windows == 'true' }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: ${{ inputs.checkout_submodules }}
       - uses: msys2/setup-msys2@v2
         with:
           update: true
-          install: base-devel mingw-w64-x86_64-toolchain
+          install: ${{ format('base-devel mingw-w64-x86_64-toolchain {0}', inputs.msys2_packages) }}
           msystem: MINGW64
           path-type: minimal
+      - name: pre-setup
+        if: ${{ inputs.pre_setup_script_windows != '' }}
+        shell: msys2 {0}
+        run: ${{ inputs.pre_setup_script_windows }}
+      - name: extra-env
+        if: ${{ inputs.extra_env_windows != '' }}
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then echo "$line" >> "$GITHUB_ENV"; fi
+          done <<'EOF'
+          ${{ inputs.extra_env_windows }}
+          EOF
+      - name: autoreconf
+        if: ${{ inputs.autoreconf == 'true' }}
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          autoreconf -fi
+      - name: pre-configure
+        if: ${{ inputs.pre_configure_script != '' }}
+        shell: msys2 {0}
+        run: ${{ inputs.pre_configure_script }}
       - name: build
         shell: msys2 {0}
         run: |
@@ -45,18 +146,51 @@ jobs:
           DBG=$([ "$DEBUG_SYMBOLS" = "true" ] && echo "-g" || echo "-g0")
           export CFLAGS="-O2 $DBG"
           export CXXFLAGS="-O2 $DBG"
-          ./configure $CONFIGURE_ARGS
+          if [ -n "$BUILD_DIR" ]; then mkdir -p "$BUILD_DIR"; cd "$BUILD_DIR"; fi
+          "$CONFIGURE_PATH" $CONFIGURE_ARGS
           if [ -n "$MAKE_TARGETS" ]; then make $MAKE_TARGETS; else make; fi
-          make DESTDIR="$(pwd)/$ARTIFACTS_DIR" install
+          make DESTDIR="$GITHUB_WORKSPACE/$ARTIFACTS_DIR" install
+      - name: post-build
+        if: ${{ inputs.post_build_script != '' }}
+        shell: msys2 {0}
+        run: ${{ inputs.post_build_script }}
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PROJECT_NAME }}-win
           path: ${{ env.ARTIFACTS_DIR }}/**
 
   linux:
+    if: ${{ inputs.enable_linux == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: ${{ inputs.checkout_submodules }}
+      - name: apt-deps
+        if: ${{ inputs.apt_packages != '' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ inputs.apt_packages }}
+      - name: pre-setup
+        if: ${{ inputs.pre_setup_script_linux != '' }}
+        run: ${{ inputs.pre_setup_script_linux }}
+      - name: extra-env
+        if: ${{ inputs.extra_env_linux != '' }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then echo "$line" >> "$GITHUB_ENV"; fi
+          done <<'EOF'
+          ${{ inputs.extra_env_linux }}
+          EOF
+      - name: autoreconf
+        if: ${{ inputs.autoreconf == 'true' }}
+        run: |
+          set -euo pipefail
+          autoreconf -fi
+      - name: pre-configure
+        if: ${{ inputs.pre_configure_script != '' }}
+        run: ${{ inputs.pre_configure_script }}
       - name: build
         run: |
           set -euo pipefail
@@ -64,18 +198,50 @@ jobs:
           DBG=$([ "$DEBUG_SYMBOLS" = "true" ] && echo "-g" || echo "-g0")
           export CFLAGS="-O2 $DBG"
           export CXXFLAGS="-O2 $DBG"
-          ./configure $CONFIGURE_ARGS
+          if [ -n "$BUILD_DIR" ]; then mkdir -p "$BUILD_DIR"; cd "$BUILD_DIR"; fi
+          "$CONFIGURE_PATH" $CONFIGURE_ARGS
           if [ -n "$MAKE_TARGETS" ]; then make $MAKE_TARGETS; else make; fi
-          make DESTDIR="$(pwd)/$ARTIFACTS_DIR" install
+          make DESTDIR="$GITHUB_WORKSPACE/$ARTIFACTS_DIR" install
+      - name: post-build
+        if: ${{ inputs.post_build_script != '' }}
+        run: ${{ inputs.post_build_script }}
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PROJECT_NAME }}-linux
           path: ${{ env.ARTIFACTS_DIR }}/**
 
   macos:
+    if: ${{ inputs.enable_macos == 'true' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: ${{ inputs.checkout_submodules }}
+      - name: brew-deps
+        if: ${{ inputs.brew_packages != '' }}
+        run: |
+          brew update
+          brew install ${{ inputs.brew_packages }}
+      - name: pre-setup
+        if: ${{ inputs.pre_setup_script_macos != '' }}
+        run: ${{ inputs.pre_setup_script_macos }}
+      - name: extra-env
+        if: ${{ inputs.extra_env_macos != '' }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then echo "$line" >> "$GITHUB_ENV"; fi
+          done <<'EOF'
+          ${{ inputs.extra_env_macos }}
+          EOF
+      - name: autoreconf
+        if: ${{ inputs.autoreconf == 'true' }}
+        run: |
+          set -euo pipefail
+          autoreconf -fi
+      - name: pre-configure
+        if: ${{ inputs.pre_configure_script != '' }}
+        run: ${{ inputs.pre_configure_script }}
       - name: build
         run: |
           set -euo pipefail
@@ -83,9 +249,13 @@ jobs:
           DBG=$([ "$DEBUG_SYMBOLS" = "true" ] && echo "-g" || echo "-g0")
           export CFLAGS="-O2 $DBG"
           export CXXFLAGS="-O2 $DBG"
-          ./configure $CONFIGURE_ARGS
+          if [ -n "$BUILD_DIR" ]; then mkdir -p "$BUILD_DIR"; cd "$BUILD_DIR"; fi
+          "$CONFIGURE_PATH" $CONFIGURE_ARGS
           if [ -n "$MAKE_TARGETS" ]; then make $MAKE_TARGETS; else make; fi
-          make DESTDIR="$(pwd)/$ARTIFACTS_DIR" install
+          make DESTDIR="$GITHUB_WORKSPACE/$ARTIFACTS_DIR" install
+      - name: post-build
+        if: ${{ inputs.post_build_script != '' }}
+        run: ${{ inputs.post_build_script }}
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PROJECT_NAME }}-osx
