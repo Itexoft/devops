@@ -64,7 +64,7 @@ set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 EOF3
 printf '#include <stdio.h>\nint main(){puts("ok");}\n' > "$SCRIPT_DIR/t.c"
 PATH="$OSXCROSS_ROOT/target/bin:$PATH" SDKROOT="$(xcrun --show-sdk-path)" MACOSX_DEPLOYMENT_TARGET="$DEPLOY_MIN" xcrun clang -arch arm64 -mmacos-version-min="$DEPLOY_MIN" "$SCRIPT_DIR/t.c" -o "$SCRIPT_DIR/t_arm64"
-file "$SCRIPT_DIR/t_arm64" || true
+command -v file >/dev/null 2>&1 && file "$SCRIPT_DIR/t_arm64" || true
 echo OK
 . "$OSXCROSS_ROOT/env/activate"
 if [ -t 0 ]; then
