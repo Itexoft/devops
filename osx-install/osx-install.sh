@@ -15,6 +15,8 @@ LLD_CANDIDATES="${LLD_CANDIDATES:-$(command -v ld64.lld || true) /usr/bin/ld64.l
 
 SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" >/dev/null 2>&1 && pwd -P || pwd -P)}"
 cd "$SCRIPT_DIR"
+CACHE_DIR="$SCRIPT_DIR/cache"
+mkdir -p "$CACHE_DIR"
 
 ensure_dirs() {
   /usr/bin/sudo mkdir -p "$OSX_ROOT"
@@ -216,16 +218,20 @@ install_osxcross() {
   mkdir -p "$SRC" "$TGT" "$HBIN"
   ln -sf "$f" "$HBIN/ld64.lld"
   PATH="$HBIN:$PATH"
-  if [ ! -d "$SRC/osxcross" ]; then git clone --depth 1 --branch "$OSXCROSS_BRANCH" "$OSXCROSS_REPO" "$SRC/osxcross"; fi
+  mirror="$CACHE_DIR/osxcross-src"
+  if [ ! -d "$mirror" ]; then git clone --depth 1 --branch "$OSXCROSS_BRANCH" "$OSXCROSS_REPO" "$mirror"; fi
+  if [ ! -d "$SRC/osxcross" ]; then cp -R "$mirror" "$SRC/osxcross"; fi
   cd "$SRC/osxcross"
   mkdir -p tarballs
-  if [ -n "${SDK_TARBALL_URL:-}" ]; then curl -fL -o "tarballs/MacOSX${DEFAULT_SDK_VER}.sdk.tar.xz" "$SDK_TARBALL_URL" || true; fi
-  if ! ls tarballs/MacOSX*.sdk.tar.* >/dev/null 2>&1; then
-    if [ -n "${XCODE_XIP:-}" ] && [ -f "${XCODE_XIP:-}" ]; then ./tools/gen_sdk_package_pbzx.sh "$XCODE_XIP"; mv MacOSX*.sdk.tar.* tarballs/
-    else curl -fL -o "tarballs/MacOSX${DEFAULT_SDK_VER}.sdk.tar.xz" "https://github.com/joseluisq/macosx-sdks/releases/download/${DEFAULT_SDK_VER}/MacOSX${DEFAULT_SDK_VER}.sdk.tar.xz" || true
+  sdk_cached="$CACHE_DIR/MacOSX${DEFAULT_SDK_VER}.sdk.tar.xz"
+  if [ -n "${SDK_TARBALL_URL:-}" ]; then [ -f "$sdk_cached" ] || curl -fL -o "$sdk_cached" "$SDK_TARBALL_URL" || true; fi
+  if [ ! -f "$sdk_cached" ]; then
+    if [ -n "${XCODE_XIP:-}" ] && [ -f "${XCODE_XIP:-}" ]; then ./tools/gen_sdk_package_pbzx.sh "$XCODE_XIP"; mv MacOSX*.sdk.tar.* "$sdk_cached"
+    else curl -fL -o "$sdk_cached" "https://github.com/joseluisq/macosx-sdks/releases/download/${DEFAULT_SDK_VER}/MacOSX${DEFAULT_SDK_VER}.sdk.tar.xz" || true
     fi
   fi
-  ls tarballs/MacOSX*.sdk.tar.* >/dev/null 2>&1 || { echo "SDK tarball not found"; exit 1; }
+  [ -f "$sdk_cached" ] || { echo "SDK tarball not found"; exit 1; }
+  cp "$sdk_cached" tarballs/
   UNATTENDED=1 ENABLE_ARCHS="$DEFAULT_ARCH" TARGET_DIR="$TGT" ./build.sh
   cat > "$OSX_ROOT/env/osxcross-activate.sh" <<EOF
 export PATH="$TGT/bin:\$PATH"
@@ -242,7 +248,9 @@ EOF
 }
 
 ensure_pyenv() {
-  if [ ! -d "$OSX_ROOT/pkgs/pyenv" ]; then git clone --depth 1 "$PYENV_REPO" "$OSX_ROOT/pkgs/pyenv"; fi
+  mirror="$CACHE_DIR/pyenv"
+  if [ ! -d "$mirror" ]; then git clone --depth 1 "$PYENV_REPO" "$mirror"; fi
+  if [ ! -d "$OSX_ROOT/pkgs/pyenv" ]; then cp -R "$mirror" "$OSX_ROOT/pkgs/pyenv"; fi
 }
 
 install_python() {
@@ -253,7 +261,7 @@ install_python() {
   "$OSX_ROOT/pkgs/pyenv/plugins/python-build/install.sh" >/dev/null 2>&1 || true
   prefix="$OSX_ROOT/pkgs/python/$ver"
   mkdir -p "$(dirname "$prefix")"
-  if [ ! -x "$prefix/bin/python" ]; then "$OSX_ROOT/pkgs/pyenv/plugins/python-build/bin/python-build" "$ver" "$prefix"; fi
+  if [ ! -x "$prefix/bin/python" ]; then PYTHON_BUILD_CACHE_PATH="$CACHE_DIR/python-build" "$OSX_ROOT/pkgs/pyenv/plugins/python-build/bin/python-build" "$ver" "$prefix"; fi
   "$prefix/bin/python" -m pip install -U "pip>=25.1"
   rm -f "$OSX_ROOT/pkgs/python/current"
   ln -s "$prefix" "$OSX_ROOT/pkgs/python/current"
@@ -266,9 +274,9 @@ install_node() {
   arch="$(uname -m)"
   case "$arch" in x86_64) host=x64 ;; aarch64|arm64) host=arm64 ;; *) host=x64 ;; esac
   url="$NODE_BASE_URL/v$ver/node-v$ver-linux-$host.tar.xz"
-  tarball="$OSX_ROOT/cache/node-v$ver-linux-$host.tar.xz"
-  mkdir -p "$OSX_ROOT/cache" "$OSX_ROOT/pkgs/node"
-  curl -fL -o "$tarball" "$url"
+  tarball="$CACHE_DIR/node-v$ver-linux-$host.tar.xz"
+  mkdir -p "$CACHE_DIR" "$OSX_ROOT/pkgs/node"
+  [ -f "$tarball" ] || curl -fL -o "$tarball" "$url"
   tmpdir="$(mktemp -d)"
   tar -C "$tmpdir" -xf "$tarball"
   srcdir="$(find "$tmpdir" -maxdepth 1 -type d -name "node-v$ver-linux-$host" -print -quit)"
