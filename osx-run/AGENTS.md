@@ -1,0 +1,2 @@
+osx-run.sh is bash with set -Eeuo pipefail and no comments
+env.txt lists commands to fetch resources and install osxcross, Python 3.11, and Node 22 with osx-run.sh
