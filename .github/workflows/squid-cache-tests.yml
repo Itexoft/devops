@@ -1,0 +1,24 @@
+name: squid-cache-tests
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: shellcheck
+      run: shellcheck osx-install/osx-install.sh testing/run-tests.sh squid-cache/squid-cache.sh osx-install/tests/*.sh squid-cache/tests/*.sh
+    - name: run tests
+      run: |
+        set -e
+        out=$(mktemp)
+        SQUID="$PWD/squid-cache/squid-cache.sh" TRACE=1 testing/run-tests.sh squid-cache/tests/00_start_iptables_cert.sh squid-cache/tests/01_cache_behavior.sh squid-cache/tests/02_python_install.sh | tee "$out"
+        line=$(grep '^t1=' "$out" | tail -n1)
+        eval "$line"
+        {
+          echo "first_download1=$t1"
+          echo "first_download2=$t2"
+          echo "second_download1=$t3"
+          echo "second_download2=$t4"
+        } >> "$GITHUB_STEP_SUMMARY"
