@@ -21,7 +21,7 @@ CA_PEM="$CA_DIR/ca.pem"
 CA_TRUST_NAME="squid-mitm"
 CA_DAYS="3650"
 CA_SUBJ="/CN=$HOSTNAME_TAG/O=$HOSTNAME_TAG/L=Local/C=NA"
-SSL_DB_DIR="/var/lib/squid/ssl_db"
+SSL_DB_DIR="${TMPDIR:-$(mktemp -d)}/ssl_db"
 CACHE_IF_STANDALONE_BIN="$BASE_DIR/squid-cache"
 CACHE_IF_SYSTEM="/tmp/squid-cache"
 SQUID_BIN_SYSTEM="/usr/sbin/squid"
@@ -40,6 +40,11 @@ require_root() {
 
 ensure_dirs() {
   mkdir -p "$LOCK_DIR" "$PID_DIR" "$CA_DIR"
+}
+
+prepare_ssl_db_dir() {
+  rm -rf "$SSL_DB_DIR"
+  install -d -o "$SQUID_USER" -g "$SQUID_GROUP" "$SSL_DB_DIR" || { echo "cannot create ssl db dir $SSL_DB_DIR"; rm -f "$LOCK_FILE"; exit 1; }
 }
 
 cache_dir_pick() {
@@ -117,8 +122,6 @@ EOF
 
 init_ssl_db() {
   local helper="$1"
-  rm -rf "$SSL_DB_DIR"
-  install -d -o "$SQUID_USER" -g "$SQUID_GROUP" "$SSL_DB_DIR"
   su -s /bin/sh -c "$helper -c -s $SSL_DB_DIR -M 20MB" "$SQUID_USER"
 }
 
@@ -198,6 +201,7 @@ start() {
   local cache_dir
   cache_dir="$(cache_dir_pick)"
   write_squid_conf "$helper" "$cache_dir"
+  prepare_ssl_db_dir
   init_ssl_db "$helper"
   squid_prepare_cache
   squid_start
