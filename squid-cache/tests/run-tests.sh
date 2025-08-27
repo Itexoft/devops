@@ -13,12 +13,9 @@ run(){
  t="$1"
  name=$(basename "$t")
  log="$dir/../../artifacts/${name%.sh}.log"
- work=$(mktemp -d)
  home=$(mktemp -d)
- OSX_ROOT="$work/opt/osx"
  HOME="$home"
- export OSX_ROOT HOME
- "$dir/../../testing/stub-env.sh" "$OSX_ROOT"
+ export HOME
  cmd=("$t")
  [ -n "${TRACE:-}" ] && cmd=(bash -x "$t")
  if "${cmd[@]}" >"$log" 2>&1; then
@@ -28,7 +25,7 @@ run(){
   echo "$name FAIL"
   fail=$((fail+1))
  fi
- rm -rf "$work" "$home"
+ rm -rf "$home"
 }
 self=$(realpath "$0")
 tests=()
