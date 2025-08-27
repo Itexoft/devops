@@ -19,6 +19,7 @@ export DEBIAN_FRONTEND=noninteractive
 f=""
 for cand in "$(command -v ld64.lld || true)" /usr/bin/ld64.lld-* /usr/lib/llvm-*/bin/ld64.lld /usr/bin/ld.lld /usr/lib/llvm-*/bin/ld.lld; do [ -n "$cand" ] && [ -x "$cand" ] && { f="$cand"; break; }; done
 if [ -z "$f" ]; then /usr/bin/sudo apt-get install -y lld || true; for cand in "$(command -v ld64.lld || true)" /usr/bin/ld64.lld-* /usr/lib/llvm-*/bin/ld64.lld /usr/bin/ld.lld /usr/lib/llvm-*/bin/ld.lld; do [ -n "$cand" ] && [ -x "$cand" ] && { f="$cand"; break; }; done; fi
+if [ -z "$f" ]; then v="18.1.8"; tmp="$(mktemp -d)"; curl -fL -o "$tmp/llvm.tar.xz" "https://github.com/llvm/llvm-project/releases/download/llvmorg-$v/clang+llvm-$v-x86_64-linux-gnu-ubuntu-18.04.tar.xz"; tar -xf "$tmp/llvm.tar.xz" -C "$tmp"; for cand in "$tmp"/clang+llvm-*/bin/ld64.lld "$tmp"/clang+llvm-*/bin/ld.lld; do [ -n "$cand" ] && [ -x "$cand" ] && { f="$cand"; break; }; done; fi
 [ -n "$f" ] || { echo ld64.lld not found; exit 1; }
 /usr/bin/sudo ln -sf "$f" /usr/local/bin/ld64.lld
 /usr/bin/sudo mkdir -p "$OSXCROSS_ROOT"
