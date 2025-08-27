@@ -48,6 +48,7 @@ ensure_dirs() {
 
 prepare_ssl_db_dir() {
   local helper="$1"
+  rm -rf "$SSL_DB_DIR"
   "$helper" -c -s "$SSL_DB_DIR" -M 20MB
   chown -R "$SQUID_USER:$SQUID_GROUP" "$SSL_DB_DIR"
 }

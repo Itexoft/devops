@@ -11,6 +11,9 @@ cp "$dir/../squid-cache.sh" "$tmp_run"
 SQUID="$tmp_run/squid-cache.sh"
 chmod +x "$SQUID"
 export SQUID
+apt-get update -y
+apt-get install -y iptables tcpdump
+ln -sf /usr/sbin/iptables-legacy /usr/sbin/iptables
 test_run(){
  t="$1"
  name=$(basename "$t")

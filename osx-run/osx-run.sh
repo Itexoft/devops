@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-p="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd -P)/agents"
-if [ ! -f "$p" ]; then
-curl -fL -o "$p" https://raw.githubusercontent.com/Itexoft/DevOpsKit/refs/heads/master/squid-cache/AGENTS.md
-fi
 if [ "${1:-}" = install ] && [ "${2:-}" = osxcross ]; then
 if cd "$(dirname "${BASH_SOURCE[0]:-$0}")" >/dev/null 2>&1; then
 SCRIPT_DIR="${SCRIPT_DIR:-$(pwd -P)}"
