@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 . "$OSX_ROOT/env/config.sh"
+"$RUN" install osxcross >/dev/null
 cat > hello.c <<'EOC'
 int main(){return 0;}
 EOC

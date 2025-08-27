@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 . "$OSX_ROOT/env/config.sh"
+"$RUN" install python 3.12 >/dev/null
 sdk_major="${DEFAULT_SDK_VER%%.*}"
 platform="macosx_${sdk_major}_0_${DEFAULT_ARCH}"
 wh="$OSX_ROOT/wheelhouse/$platform"
