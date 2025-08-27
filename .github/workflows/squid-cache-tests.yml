@@ -7,6 +7,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - run: sudo apt-get update && sudo apt-get install -y shellcheck iptables zsh lld
+    - run: sudo ln -sf /usr/sbin/iptables-legacy /usr/sbin/iptables
     - name: shellcheck
       run: shellcheck squid-cache/squid-cache.sh squid-cache/tests/*.sh
     - name: run tests
@@ -20,5 +21,7 @@ jobs:
             echo "first_download2=$t2"
             echo "second_download1=$t3"
             echo "second_download2=$t4"
+            echo "third_download1=$t5"
+            echo "third_download2=$t6"
           } >> "$GITHUB_STEP_SUMMARY"
         fi
