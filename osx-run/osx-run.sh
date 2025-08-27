@@ -11,7 +11,9 @@ else
 SCRIPT_DIR="${SCRIPT_DIR:-$(pwd -P)}"
 fi
 cd "$SCRIPT_DIR"
-: "${OSXCROSS_ROOT:=/opt/osxcross}"
+: "${OSX_ROOT:=/opt/osx}"
+: "${OSXCROSS_ROOT:=$OSX_ROOT/pkgs/osxcross}"
+if [ -x "$OSXCROSS_ROOT/target/bin/xcrun" ]; then exit 0; fi
 : "${SDK_VER:=15.5}"
 : "${DEPLOY_MIN:=11.0}"
 : "${ARCHES:=arm64}"
@@ -76,6 +78,44 @@ if [ -t 0 ] && [ -z "${OSX_RUN_SKIP_SHELL:-}" ]; then
 SHELL_BIN="${SHELL:-/bin/bash}"
 exec "$SHELL_BIN" -i
 fi
+exit 0
+fi
+if [ "${1:-}" = install ] && [ "${2:-}" = python ]; then
+: "${OSX_ROOT:=/opt/osx}"
+ver="${3:-3.11}"
+for d in "$OSX_ROOT/pkgs/python/$ver"*; do [ -d "$d" ] && { ln -sfn "$d" "$OSX_ROOT/pkgs/python/current"; exit 0; }; done
+mkdir -p "$OSX_ROOT/cache"
+fv="$(curl -fsL https://www.python.org/ftp/python/ | grep -o "${ver}[.][0-9][0-9]*" | sort -V | tail -n1)"
+[ -n "$fv" ] || fv="$ver.0"
+dir="$OSX_ROOT/pkgs/python/$fv"
+if [ ! -x "$dir/bin/python3" ]; then
+command -v bsdtar >/dev/null 2>&1 || /usr/bin/sudo apt-get install -y libarchive-tools
+mkdir -p "$dir"
+curl -fL "https://www.python.org/ftp/python/$fv/python-$fv-macos11.pkg" -o "$OSX_ROOT/cache/python-$fv.pkg"
+tmp="$(mktemp -d)"
+bsdtar -xf "$OSX_ROOT/cache/python-$fv.pkg" -C "$tmp"
+bsdtar -xf "$tmp/Python_Framework.pkg/Payload" -C "$tmp"
+mv "$tmp/Library/Frameworks/Python.framework/Versions/$fv" "$dir"
+ln -sf "$dir/bin/python3" "$dir/bin/python"
+rm -rf "$tmp"
+fi
+ln -sfn "$dir" "$OSX_ROOT/pkgs/python/current"
+exit 0
+fi
+if [ "${1:-}" = install ] && [ "${2:-}" = node ]; then
+: "${OSX_ROOT:=/opt/osx}"
+: "${DEFAULT_ARCH:=arm64}"
+ver="${3:-22}"
+for d in "$OSX_ROOT/pkgs/node/$ver"*; do [ -d "$d" ] && { ln -sfn "$d" "$OSX_ROOT/pkgs/node/current"; exit 0; }; done
+mkdir -p "$OSX_ROOT/cache"
+fv="$(curl -fsL https://nodejs.org/dist/index.json | grep -o "v${ver}[0-9.]*" | head -n1 | tr -d v)"
+dir="$OSX_ROOT/pkgs/node/$fv"
+if [ ! -x "$dir/bin/node" ]; then
+mkdir -p "$dir"
+curl -fL "https://nodejs.org/dist/v$fv/node-v$fv-darwin-$DEFAULT_ARCH.tar.gz" -o "$OSX_ROOT/cache/node-v$fv-darwin-$DEFAULT_ARCH.tar.gz"
+tar -xzf "$OSX_ROOT/cache/node-v$fv-darwin-$DEFAULT_ARCH.tar.gz" -C "$dir" --strip-components 1
+fi
+ln -sfn "$dir" "$OSX_ROOT/pkgs/node/current"
 exit 0
 fi
 OSX_ROOT="${OSX_ROOT:-/opt/osx}"
