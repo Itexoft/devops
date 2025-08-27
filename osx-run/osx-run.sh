@@ -66,6 +66,11 @@ printf '#include <stdio.h>\nint main(){puts("ok");}\n' > "$SCRIPT_DIR/t.c"
 PATH="$OSXCROSS_ROOT/target/bin:$PATH" SDKROOT="$(xcrun --show-sdk-path)" MACOSX_DEPLOYMENT_TARGET="$DEPLOY_MIN" xcrun clang -arch arm64 -mmacos-version-min="$DEPLOY_MIN" "$SCRIPT_DIR/t.c" -o "$SCRIPT_DIR/t_arm64"
 file "$SCRIPT_DIR/t_arm64" || true
 echo OK
+. "$OSXCROSS_ROOT/env/activate"
+if [ -t 0 ]; then
+SHELL_BIN="${SHELL:-/bin/bash}"
+exec "$SHELL_BIN" -i
+fi
 exit 0
 fi
 OSX_ROOT="${OSX_ROOT:-/opt/osx}"
@@ -137,6 +142,10 @@ export CXX="${CXX:-xcrun clang++}"
 export CFLAGS="${CFLAGS:-} -mmacos-version-min=$MACOSX_DEPLOYMENT_TARGET"
 export CXXFLAGS="${CXXFLAGS:-} -stdlib=libc++ -mmacos-version-min=$MACOSX_DEPLOYMENT_TARGET"
 export LDFLAGS="${LDFLAGS:-} -stdlib=libc++"
+if [ "$#" -eq 0 ]; then
+ d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd -P)"
+ case ":$PATH:" in *":$d:"*) ;; *) PATH="$d:$PATH"; export PATH; printf 'export PATH="%s:$PATH"\n' "$d" >> "$HOME/.bashrc"; printf 'export PATH="%s:$PATH"\n' "$d" >> "$HOME/.zshrc";; esac
+fi
 hash -r || true
 if [ "$#" -gt 0 ]; then
  exec "$@"
