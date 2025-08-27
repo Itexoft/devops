@@ -6,6 +6,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - run: sudo apt-get update && sudo apt-get install -y shellcheck
-    - run: shellcheck -e SC1091 osx-run/osx-run.sh testing/run-tests.sh osx-run/tests/*.sh testing/stub-env.sh
-    - run: ./testing/run-tests.sh osx-run/tests
+    - run: sudo apt-get update && sudo apt-get install -y shellcheck iptables
+    - run: shellcheck -e SC1091 osx-run/osx-run.sh osx-run/tests/*.sh testing/stub-env.sh
+    - run: ./osx-run/tests/run-tests.sh
