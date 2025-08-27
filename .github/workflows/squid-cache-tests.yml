@@ -11,9 +11,8 @@ jobs:
     - name: run tests
       run: |
         set -e
-        out=$(mktemp)
-        SQUID="$PWD/squid-cache/squid-cache.sh" TRACE=1 testing/run-tests.sh squid-cache/tests/00_start_iptables_cert.sh squid-cache/tests/01_cache_behavior.sh squid-cache/tests/02_python_install.sh | tee "$out"
-        line=$(grep '^t1=' "$out" | tail -n1)
+        SQUID="$PWD/squid-cache/squid-cache.sh" TRACE=1 testing/run-tests.sh squid-cache/tests/00_start_iptables_cert.sh squid-cache/tests/01_cache_behavior.sh squid-cache/tests/02_python_install.sh
+        line=$(grep '^t1=' artifacts/01_cache_behavior.log | tail -n1)
         eval "$line"
         {
           echo "first_download1=$t1"
