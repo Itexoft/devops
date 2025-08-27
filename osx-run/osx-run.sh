@@ -144,12 +144,9 @@ export CXXFLAGS="${CXXFLAGS:-} -stdlib=libc++ -mmacos-version-min=$MACOSX_DEPLOY
 export LDFLAGS="${LDFLAGS:-} -stdlib=libc++"
 if [ "$#" -eq 0 ]; then
  d="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd -P)"
- case ":$PATH:" in *":$d:"*) ;; *) PATH="$d:$PATH"; export PATH; printf 'export PATH="%s:$PATH"\n' "$d" >> "$HOME/.bashrc"; printf 'export PATH="%s:$PATH"\n' "$d" >> "$HOME/.zshrc";; esac
+ case ":$PATH:" in *":$d:"*) ;; *) PATH="$d:$PATH"; export PATH; printf "export PATH=\"%s:\\$PATH\"\n" "$d" >> "$HOME/.bashrc"; printf "export PATH=\"%s:\\$PATH\"\n" "$d" >> "$HOME/.zshrc";; esac
+ hash -r || true
+ exit 0
 fi
 hash -r || true
-if [ "$#" -gt 0 ]; then
- exec "$@"
-else
- SHELL_BIN="${SHELL:-/bin/bash}"
- exec "$SHELL_BIN" -i
-fi
+exec "$@"

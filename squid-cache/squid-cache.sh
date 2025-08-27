@@ -235,6 +235,10 @@ monitor_stop() {
 start() {
   require_root
   ensure_dirs
+  if [ -f "$SQUID_PID" ]; then
+    if kill -0 "$(cat "$SQUID_PID")" 2>/dev/null; then echo "already running"; exit 1; fi
+    rm -f "$SQUID_PID"
+  fi
   if [ -f "$LOCK_FILE" ]; then exit 0; fi
   touch "$LOCK_FILE"
   install_packages
@@ -252,7 +256,13 @@ start() {
   "$SQUID_BIN" -f "$SQUID_CONF" -k parse
   squid_prepare_cache
   squid_start
-  while [ ! -f "$SQUID_PID" ] || ! kill -0 "$(cat "$SQUID_PID")" 2>/dev/null; do sleep 1; done
+  t=0
+  while true; do
+    if [ -f "$SQUID_PID" ] && kill -0 "$(cat "$SQUID_PID")" 2>/dev/null; then break; fi
+    if [ "$t" -ge 30 ]; then rm -f "$LOCK_FILE"; echo timeout; exit 1; fi
+    sleep 1
+    t=$((t+1))
+  done
   iptables_enable
   monitor_start
   echo "started"
@@ -272,5 +282,6 @@ stop() {
 case "$ACTION" in
   start) start ;;
   stop) stop ;;
-  *) echo "usage: $0 {start|stop}"; exit 1 ;;
+  restart|'') stop; start ;;
+  *) echo "usage: $0 {start|stop|restart}"; exit 1 ;;
 esac
