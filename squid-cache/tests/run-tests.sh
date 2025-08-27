@@ -18,7 +18,7 @@ run(){
  OSX_ROOT="$work/opt/osx"
  HOME="$home"
  export OSX_ROOT HOME
- "$dir/../../testing/stub-env.sh" "$OSX_ROOT"
+ mkdir -p "$OSX_ROOT"
  cmd=("$t")
  [ -n "${TRACE:-}" ] && cmd=(bash -x "$t")
  if "${cmd[@]}" >"$log" 2>&1; then
