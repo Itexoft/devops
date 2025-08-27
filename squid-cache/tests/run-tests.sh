@@ -19,7 +19,8 @@ run(){
  HOME="$home"
  export OSX_ROOT HOME
  mkdir -p "$OSX_ROOT"
- if bash -x "$t" >"$log" 2>&1; then
+ echo "$name START"
+ if "$dir/../../lib/testing/utils.sh" run "$log" bash -x "$t"; then
   echo "$name PASS"
   pass=$((pass+1))
   [ -n "${TRACE:-}" ] && cat "$log"

@@ -13,29 +13,35 @@ cache="$base/cache"
 [ -f /usr/local/share/ca-certificates/squid-mitm.crt ]
 ts(){ date +%s%3N; }
 s=$(ts)
-curl -L -o /dev/null "$u1"
+basename "$u1" >&3
+curl -# -L -o /dev/null "$u1" >&3
 e=$(ts)
 t1=$((e-s))
 s=$(ts)
-curl -L -o /dev/null "$u2"
+basename "$u2" >&3
+curl -# -L -o /dev/null "$u2" >&3
 e=$(ts)
 t2=$((e-s))
 c=$(find "$cache" -type f | wc -l)
 [ "$c" -ge 2 ]
 s=$(ts)
-curl -L -o /dev/null "$u1"
+basename "$u1" >&3
+curl -# -L -o /dev/null "$u1" >&3
 e=$(ts)
 t3=$((e-s))
 s=$(ts)
-curl -L -o /dev/null "$u2"
+basename "$u2" >&3
+curl -# -L -o /dev/null "$u2" >&3
 e=$(ts)
 t4=$((e-s))
 s=$(ts)
-curl -L -o /dev/null "$u1"
+basename "$u1" >&3
+curl -# -L -o /dev/null "$u1" >&3
 e=$(ts)
 t5=$((e-s))
 s=$(ts)
-curl -L -o /dev/null "$u2"
+basename "$u2" >&3
+curl -# -L -o /dev/null "$u2" >&3
 e=$(ts)
 t6=$((e-s))
 [ "$t3" -lt "$t1" ]
