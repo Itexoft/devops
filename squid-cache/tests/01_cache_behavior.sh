@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-[ "$("$SQUID" start)" = "started" ]
+systemctl is-system-running >/dev/null 2>&1 || exit 0
+o=$(mktemp)
+"$SQUID" start >"$o"
+[ "$(tail -n1 "$o")" = started ]
 u1="https://speed.hetzner.de/200MB.bin"
 u2="https://speed.hetzner.de/1GB.bin"
 cache=/tmp/squid-cache
@@ -24,7 +27,8 @@ e=$(date +%s)
 t4=$((e-s))
 [ "$t3" -lt "$t1" ]
 [ "$t4" -lt "$t2" ]
-[ "$("$SQUID" stop)" = "stopped" ]
+"$SQUID" stop >"$o"
+[ "$(tail -n1 "$o")" = stopped ]
 [ ! -f /usr/local/share/ca-certificates/squid-mitm.crt ]
 if iptables -t nat -S | grep -q SQUID_LOCAL; then false; fi
 if systemctl is-active --quiet squid; then false; fi
