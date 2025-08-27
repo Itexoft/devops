@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 OSX_ROOT="$1"
-mkdir -p "$OSX_ROOT/bin" "$OSX_ROOT/env" "$OSX_ROOT/shims" "$OSX_ROOT/pkgs/osxcross/target/bin" "$OSX_ROOT/pkgs/osxcross/target/SDK" "$OSX_ROOT/pkgs/python/3.12.0/bin" "$OSX_ROOT/pkgs/node/22.7.0/bin" "$OSX_ROOT/wheelhouse/macosx_15_0_arm64" "$OSX_ROOT/site-macosx_15_0_arm64" "$OSX_ROOT/cache"
+mkdir -p "$OSX_ROOT/bin" "$OSX_ROOT/env" "$OSX_ROOT/shims" "$OSX_ROOT/pkgs/osxcross/target/bin" "$OSX_ROOT/pkgs/osxcross/target/SDK" "$OSX_ROOT/pkgs/python/3.12.0/bin" "$OSX_ROOT/pkgs/node/22.7.0/bin" "$OSX_ROOT/wheelhouse/macosx_15_0_arm64" "$OSX_ROOT/site-macosx_15_0_arm64" "$OSX_ROOT/cache" "$OSX_ROOT/toolchains"
 cat > "$OSX_ROOT/env/config.sh" <<EOF2
 OSX_ROOT="$OSX_ROOT"
 DEFAULT_ARCH="arm64"
@@ -17,6 +17,28 @@ cat > "$OSX_ROOT/env/pip-macos.conf" <<EOF2
 no-index = true
 find-links = $OSX_ROOT/wheelhouse/macosx_15_0_arm64
 target = $OSX_ROOT/site-macosx_15_0_arm64
+EOF2
+cat > "$OSX_ROOT/env/activate" <<EOF2
+export PATH="$OSX_ROOT/pkgs/osxcross/target/bin:\$PATH"
+export SDKROOT="$OSX_ROOT/pkgs/osxcross/target/SDK"
+export MACOSX_DEPLOYMENT_TARGET="11.0"
+export CC="xcrun clang"
+export CXX="xcrun clang++"
+export CFLAGS="-mmacos-version-min=11.0"
+export CXXFLAGS="-stdlib=libc++ -mmacos-version-min=11.0"
+export LDFLAGS="-stdlib=libc++"
+EOF2
+cat > "$OSX_ROOT/toolchains/darwin-arm64.cmake" <<'EOF2'
+set(CMAKE_SYSTEM_NAME Darwin)
+set(CMAKE_SYSTEM_PROCESSOR arm64)
+set(CMAKE_OSX_ARCHITECTURES arm64)
+set(CMAKE_OSX_DEPLOYMENT_TARGET $ENV{MACOSX_DEPLOYMENT_TARGET})
+set(CMAKE_OSX_SYSROOT $ENV{SDKROOT})
+set(CMAKE_C_COMPILER xcrun)
+set(CMAKE_C_COMPILER_ARG1 clang)
+set(CMAKE_CXX_COMPILER xcrun)
+set(CMAKE_CXX_COMPILER_ARG1 clang++)
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 EOF2
 cat > "$OSX_ROOT/pkgs/osxcross/target/bin/xcrun" <<'EOF2'
 #!/usr/bin/env bash

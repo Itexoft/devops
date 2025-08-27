@@ -4,5 +4,10 @@ set -Eeuo pipefail
 cat > hello.c <<'EOC'
 int main(){return 0;}
 EOC
-"$RUN" clang hello.c -o hello -arch "$DEFAULT_ARCH" -mmacosx-version-min="$DEFAULT_DEPLOY_MIN"
+"$RUN" env | grep -q "CC=xcrun clang"
+"$RUN" env | grep -q "CXX=xcrun clang++"
+"$RUN" env | grep -q "CFLAGS=.*-mmacos-version-min=$DEFAULT_DEPLOY_MIN"
+"$RUN" env | grep -q "CXXFLAGS=.*-stdlib=libc++ -mmacos-version-min=$DEFAULT_DEPLOY_MIN"
+"$RUN" env | grep -q "LDFLAGS=.*-stdlib=libc++"
+"$RUN" sh -c "clang \$CFLAGS hello.c -o hello \$LDFLAGS"
 file hello | grep -qi 'Mach-O'
