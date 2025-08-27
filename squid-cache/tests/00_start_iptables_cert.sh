@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-if ! command -v systemctl >/dev/null 2>&1; then exit 0; fi
-if ! systemctl is-system-running >/dev/null 2>&1; then exit 0; fi
 if ! command -v iptables >/dev/null 2>&1; then exit 0; fi
+iptables -t nat -L >/dev/null 2>&1 || exit 0
 o=$(mktemp)
-bash "$SQUID" start >"$o" || { journalctl -xeu squid.service; exit 1; }
+base=$(dirname "$SQUID")
+bash "$SQUID" start >"$o" || exit 1
 [ "$(tail -n1 "$o")" = started ]
 iptables -t nat -S | grep -q SQUID_LOCAL
+[ -f "$base/mitm_ca/ca.crt" ]
 [ -f /usr/local/share/ca-certificates/squid-mitm.crt ]
 bash "$SQUID" stop >"$o"
 [ "$(tail -n1 "$o")" = stopped ]
+[ ! -f /usr/local/share/ca-certificates/squid-mitm.crt ]
