@@ -9,7 +9,7 @@ jobs:
     - run: sudo apt-get update && sudo apt-get install -y shellcheck iptables zsh lld
     - run: sudo ln -sf /usr/sbin/iptables-legacy /usr/sbin/iptables
     - name: shellcheck
-      run: shellcheck squid-cache/squid-cache.sh squid-cache/tests/*.sh
+      run: shellcheck squid-cache/squid-cache.sh squid-cache/tests/*.sh testing/assert.sh
     - name: run tests
       run: |
         set -e

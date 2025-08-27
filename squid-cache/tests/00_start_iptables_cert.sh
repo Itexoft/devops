@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-. "$(dirname "$0")/../../testing/assert.sh"
+. "$PWD/testing/assert.sh"
 assert_cmd iptables
 assert_env SQUID
 iptables -t nat -L >/dev/null 2>&1
