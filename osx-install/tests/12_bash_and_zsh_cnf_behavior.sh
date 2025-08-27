@@ -7,6 +7,9 @@ cd "$dir"
 res=$(bash -ic 'osx-bcnf >/dev/null || true; pwd')
 [ "$res" = "$dir" ]
 [ -x "$OSX_ROOT/bin/osx-bcnf" ]
+if command -v zsh >/dev/null; then
 res=$(zsh -ic 'osx-zcnf >/dev/null || true; pwd')
 [ "$res" = "$dir" ]
 [ -x "$OSX_ROOT/bin/osx-zcnf" ]
+fi
+
