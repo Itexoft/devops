@@ -8,7 +8,7 @@ SCRIPT_DIR="${SCRIPT_DIR:-$(pwd -P)}"
 fi
 cd "$SCRIPT_DIR"
 : "${OSXCROSS_ROOT:=/opt/osxcross}"
-: "${SDK_VER:=26.0}"
+: "${SDK_VER:=15.5}"
 : "${DEPLOY_MIN:=11.0}"
 : "${ARCHES:=arm64}"
 : "${XCODE_XIP:=}"

@@ -117,8 +117,9 @@ EOF
 
 init_ssl_db() {
   local helper="$1"
+  rm -rf "$SSL_DB_DIR"
   install -d -o "$SQUID_USER" -g "$SQUID_GROUP" "$SSL_DB_DIR"
-  su -s /bin/sh -c "$helper -c -s $SSL_DB_DIR -M 20MB" "$SQUID_USER" || true
+  su -s /bin/sh -c "$helper -c -s $SSL_DB_DIR -M 20MB" "$SQUID_USER"
 }
 
 iptables_enable() {
@@ -188,6 +189,7 @@ start() {
   if [ -f "$LOCK_FILE" ]; then exit 0; fi
   touch "$LOCK_FILE"
   install_packages
+  squid_stop
   local helper
   helper="$(detect_ssl_helper)"
   [ -n "$helper" ] || { echo "ssl helper not found"; rm -f "$LOCK_FILE"; exit 1; }
