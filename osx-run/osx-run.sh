@@ -93,13 +93,15 @@ case "$ver" in
 esac
 dir="$OSX_ROOT/pkgs/python/$fv"
 if [ ! -x "$dir/bin/python3" ]; then
+command -v 7z >/dev/null 2>&1 || /usr/bin/sudo apt-get install -y p7zip-full
 command -v bsdtar >/dev/null 2>&1 || /usr/bin/sudo apt-get install -y libarchive-tools
-mkdir -p "$dir"
+mkdir -p "$(dirname "$dir")"
 curl -fL "https://www.python.org/ftp/python/$fv/python-$fv-macos11.pkg" -o "$OSX_ROOT/cache/python-$fv.pkg"
 tmp="$(mktemp -d)"
-bsdtar -xf "$OSX_ROOT/cache/python-$fv.pkg" -C "$tmp"
+7z x "$OSX_ROOT/cache/python-$fv.pkg" -o"$tmp" >/dev/null
+rm -rf "$tmp/Resources"
 bsdtar -xf "$tmp/Python_Framework.pkg/Payload" -C "$tmp"
-mv "$tmp/Library/Frameworks/Python.framework/Versions/$fv" "$dir"
+mv "$tmp/Versions/${fv%.*}" "$dir"
 ln -sf "$dir/bin/python3" "$dir/bin/python"
 rm -rf "$tmp"
 fi
