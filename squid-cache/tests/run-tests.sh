@@ -19,14 +19,14 @@ run(){
  HOME="$home"
  export OSX_ROOT HOME
  mkdir -p "$OSX_ROOT"
- cmd=("$t")
- [ -n "${TRACE:-}" ] && cmd=(bash -x "$t")
- if "${cmd[@]}" >"$log" 2>&1; then
+ if bash -x "$t" >"$log" 2>&1; then
   echo "$name PASS"
   pass=$((pass+1))
+  [ -n "${TRACE:-}" ] && cat "$log"
  else
   echo "$name FAIL"
   fail=$((fail+1))
+  cat "$log"
  fi
  rm -rf "$work" "$home"
 }
