@@ -4,7 +4,7 @@ if ! command -v systemctl >/dev/null 2>&1; then exit 0; fi
 if ! systemctl is-system-running >/dev/null 2>&1; then exit 0; fi
 if ! command -v iptables >/dev/null 2>&1; then exit 0; fi
 o=$(mktemp)
-"$SQUID" start >"$o"
+bash "$SQUID" start >"$o"
 [ "$(tail -n1 "$o")" = started ]
 u1="https://speed.hetzner.de/200MB.bin"
 u2="https://speed.hetzner.de/1GB.bin"
@@ -29,7 +29,7 @@ e=$(date +%s)
 t4=$((e-s))
 [ "$t3" -lt "$t1" ]
 [ "$t4" -lt "$t2" ]
-"$SQUID" stop >"$o"
+bash "$SQUID" stop >"$o"
 [ "$(tail -n1 "$o")" = stopped ]
 [ ! -f /usr/local/share/ca-certificates/squid-mitm.crt ]
 if iptables -t nat -S | grep -q SQUID_LOCAL; then false; fi

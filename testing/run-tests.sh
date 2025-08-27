@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-if ! command -v shellcheck >/dev/null 2>&1 || ! command -v file >/dev/null 2>&1; then /usr/bin/sudo apt-get update; /usr/bin/sudo apt-get install -y shellcheck file; fi
+if ! command -v shellcheck >/dev/null 2>&1 || ! command -v file >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1; then /usr/bin/sudo apt-get update; /usr/bin/sudo apt-get install -y shellcheck file iptables; fi
 mkdir -p artifacts
 printf 'bash %s\n' "$(bash --version | head -n1)"
 printf 'zsh %s\n' "$(zsh --version 2>/dev/null | head -n1)"
