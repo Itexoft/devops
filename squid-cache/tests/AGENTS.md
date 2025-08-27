@@ -2,3 +2,6 @@
 - Scripts are bash with set -Eeuo pipefail and no comments
 - Run ./run-tests.sh to execute all tests or pass script paths
 - Tests check startup iptables certificate caching and python download
+- iptables is not installed by default; install before running tests:
+  - sudo apt-get update && sudo apt-get install -y iptables
+  - sudo ln -sf /usr/sbin/iptables-legacy /usr/sbin/iptables
