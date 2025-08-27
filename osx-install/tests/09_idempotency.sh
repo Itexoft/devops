@@ -11,7 +11,6 @@ c1=$(readlink "$OSX_ROOT/pkgs/node/current")
 c2=$(readlink "$OSX_ROOT/pkgs/node/current")
 [ "$c1" = "$c2" ]
 . "$OSX_ROOT/env/pathrc.sh"
-p2="$PATH"
 . "$OSX_ROOT/env/pathrc.sh"
-p3="$PATH"
-[ "$p2" = "$p3" ]
+count=$(printf '%s' "$PATH" | grep -o "$OSX_ROOT/bin" | wc -l)
+[ "$count" -eq 1 ]
