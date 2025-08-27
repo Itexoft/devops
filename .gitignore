@@ -83,3 +83,5 @@ dist/
 release/
 releases/
 build/
+osx-install/cache/*
+!osx-install/cache/.gitkeep
