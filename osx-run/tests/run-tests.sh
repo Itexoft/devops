@@ -4,7 +4,7 @@ set -Eeuo pipefail
 export OSX_RUN_SKIP_SHELL=1
 stub_env(){
  OSX_ROOT="$1"
- mkdir -p "$OSX_ROOT/bin" "$OSX_ROOT/env" "$OSX_ROOT/shims" "$OSX_ROOT/pkgs/osxcross/target/bin" "$OSX_ROOT/pkgs/osxcross/target/SDK" "$OSX_ROOT/pkgs/python/3.12.0/bin" "$OSX_ROOT/pkgs/node/22.7.0/bin" "$OSX_ROOT/wheelhouse/macosx_15_0_arm64" "$OSX_ROOT/site-macosx_15_0_arm64" "$OSX_ROOT/cache" "$OSX_ROOT/toolchains"
+ mkdir -p "$OSX_ROOT/bin" "$OSX_ROOT/env" "$OSX_ROOT/shims" "$OSX_ROOT/pkgs/osxcross/target/bin" "$OSX_ROOT/pkgs/osxcross/target/SDK" "$OSX_ROOT/pkgs/python/3.12.0/bin" "$OSX_ROOT/pkgs/node/22.7.0/bin" "$OSX_ROOT/wheelhouse/macosx_15_0_arm64" "$OSX_ROOT/site-macosx_15_0_arm64" "$OSX_ROOT/toolchains"
  cat > "$OSX_ROOT/bin/install" <<'EOF2'
 #!/usr/bin/env bash
 exit 0

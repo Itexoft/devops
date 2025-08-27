@@ -187,7 +187,8 @@ iptables_disable() {
     while iptables -t nat -S "$IPTABLES_CHAIN" | grep -q "^-A $IPTABLES_CHAIN"; do
       local rule
       rule="$(iptables -t nat -S "$IPTABLES_CHAIN" | grep "^-A $IPTABLES_CHAIN" | head -n1 | sed 's/^-A /-D /')"
-      iptables -t nat "$rule" || true
+      read -r -a parts <<< "$rule"
+      iptables -t nat "${parts[@]}" || true
     done
     iptables -t nat -X "$IPTABLES_CHAIN" || true
   fi
