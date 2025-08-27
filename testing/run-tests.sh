@@ -12,7 +12,10 @@ printf 'python %s\n' "$(python -V 2>&1)"
 printf 'shellcheck %s\n' "$(shellcheck --version 2>/dev/null | head -n1)"
 pass=0
 fail=0
-RUN="$(pwd)/osx-run/osx-run.sh"
+tmp_run=$(mktemp -d)
+cp osx-run/osx-run.sh "$tmp_run"
+RUN="$tmp_run/osx-run.sh"
+chmod +x "$RUN"
 export RUN
 run(){
 t="$1"
@@ -53,4 +56,5 @@ for t in "${tests[@]}"; do
 run "$t"
 done
 echo "passed $pass failed $fail"
+rm -rf "$tmp_run"
 [ "$fail" -eq 0 ]

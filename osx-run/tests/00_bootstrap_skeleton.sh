@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+"$RUN" install osxcross >/dev/null
+"$RUN" install python 3.12 >/dev/null
+"$RUN" install node 22 >/dev/null
 "$RUN" true >/dev/null
 [ -d "$OSX_ROOT/bin" ]
 [ -d "$OSX_ROOT/env" ]
