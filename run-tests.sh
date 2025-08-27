@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 INSTALL="./osx-install/osx-install.sh"
 export INSTALL
+if ! command -v shellcheck >/dev/null 2>&1; then /usr/bin/sudo apt-get update; /usr/bin/sudo apt-get install -y shellcheck; fi
 mkdir -p artifacts
 printf 'bash %s\n' "$(bash --version | head -n1)"
 printf 'zsh %s\n' "$(zsh --version 2>/dev/null | head -n1)"
@@ -22,7 +23,9 @@ home=$(mktemp -d)
 OSX_ROOT="$work/opt/osx"
 HOME="$home"
 export OSX_ROOT HOME
-if "$t" >"$log" 2>&1; then
+  cmd=("$t")
+  [ -n "${TRACE:-}" ] && cmd=(bash -x "$t")
+  if "${cmd[@]}" >"$log" 2>&1; then
 echo "$name PASS"
 pass=$((pass+1))
 else

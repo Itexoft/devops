@@ -232,7 +232,7 @@ install_osxcross() {
   fi
   [ -f "$sdk_cached" ] || { echo "SDK tarball not found"; exit 1; }
   cp "$sdk_cached" tarballs/
-  CC=cc CXX=c++ UNATTENDED=1 ENABLE_ARCHS="$DEFAULT_ARCH" TARGET_DIR="$TGT" ./build.sh
+  (set +e; CC="$(command -v gcc)" CXX="$(command -v g++)" CONFIG_SHELL=/bin/bash UNATTENDED=1 ENABLE_ARCHS="$DEFAULT_ARCH" TARGET_DIR="$TGT" ./build.sh)
   cat > "$OSX_ROOT/env/osxcross-activate.sh" <<EOF
 export PATH="$TGT/bin:\$PATH"
 export SDKROOT="\$(xcrun --show-sdk-path)"
