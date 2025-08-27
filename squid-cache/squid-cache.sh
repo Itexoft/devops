@@ -21,8 +21,7 @@ CA_PEM="$CA_DIR/ca.pem"
 CA_TRUST_NAME="squid-mitm"
 CA_DAYS="3650"
 CA_SUBJ="/CN=$HOSTNAME_TAG/O=$HOSTNAME_TAG/L=Local/C=NA"
-SSL_DB_BASE="/var/lib/squid-mitm"
-SSL_DB_DIR="$SSL_DB_BASE/ssl_db"
+SSL_DB_DIR="/var/lib/squid/squid-cache"
 CACHE_IF_STANDALONE_BIN="$BASE_DIR/squid-cache"
 CACHE_IF_SYSTEM="/tmp/squid-cache"
 SQUID_BIN_SYSTEM="/usr/sbin/squid"
@@ -44,8 +43,10 @@ ensure_dirs() {
 }
 
 prepare_ssl_db_dir() {
-  rm -rf "$SSL_DB_DIR"
-  install -d -m 0755 -o "$SQUID_USER" -g "$SQUID_GROUP" "$SSL_DB_DIR" || { echo "cannot create ssl db dir $SSL_DB_DIR"; rm -f "$LOCK_FILE"; exit 1; }
+  local helper="$1"
+  install -d -m 750 -o "$SQUID_USER" -g "$SQUID_GROUP" /var/lib/squid
+  "$helper" -c -s "$SSL_DB_DIR" -M 20MB || true
+  chown -R "$SQUID_USER:$SQUID_GROUP" /var/lib/squid
 }
 
 cache_dir_pick() {
@@ -59,7 +60,10 @@ cache_dir_pick() {
 install_packages() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
-  apt-get install -y "$SQUID_PKG" ca-certificates iptables
+  apt-get install -y ca-certificates iptables
+  if ! command -v squid >/dev/null 2>&1 || ! squid -v 2>&1 | grep -q -- '--enable-ssl-crtd'; then
+    apt-get install -y "$SQUID_PKG"
+  fi
 }
 
 detect_ssl_helper() {
@@ -119,11 +123,6 @@ refresh_pattern . 0 20% ${REFRESH_LONG_MIN} ignore-reload override-expire overri
 tls_outgoing_options cafile=/etc/ssl/certs/ca-certificates.crt
 EOF
   chown "$SQUID_USER:$SQUID_GROUP" "$SQUID_CONF"
-}
-
-init_ssl_db() {
-  local helper="$1"
-  su -s /bin/sh -c "$helper -c -s $SSL_DB_DIR -M 20MB" "$SQUID_USER"
 }
 
 iptables_enable() {
@@ -202,10 +201,11 @@ start() {
   local cache_dir
   cache_dir="$(cache_dir_pick)"
   write_squid_conf "$helper" "$cache_dir"
-  prepare_ssl_db_dir
-  init_ssl_db "$helper"
+  prepare_ssl_db_dir "$helper"
+  "$SQUID_BIN_SYSTEM" -k parse
   squid_prepare_cache
   squid_start
+  systemctl is-active --quiet "$SQUID_SERVICE"
   iptables_enable
   monitor_start
   echo "started"
