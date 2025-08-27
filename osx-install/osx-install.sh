@@ -106,7 +106,7 @@ cmd="$(basename "$0")"
 sub="${cmd#osx-}"
 [ "$sub" != "$cmd" ] || { echo "$cmd: bad invoke"; exit 127; }
 osx_env() {
-  [ -f "$OSX_ROOT/env/osxcross-activate.sh" ] && . "$OSX_ROOT/env/osxcross-activate.sh"
+  if [ -f "$OSX_ROOT/env/osxcross-activate.sh" ]; then . "$OSX_ROOT/env/osxcross-activate.sh"; fi
 }
 pick_latest_dir() {
   b="$1"
@@ -182,6 +182,7 @@ mk() { n="$1"; [ -n "$n" ] || exit 0; ln -sf "$dispatch" "$BIN_DIR/osx-$n"; }
 if [ "$1" = "--bulk" ]; then
   [ -x "$OSX_ROOT/pkgs/python/current/bin/python" ] && for n in python python3 pip pip3; do mk "$n"; done
   [ -x "$OSX_ROOT/pkgs/node/current/bin/node" ] && for n in node npm npx corepack; do mk "$n"; done
+  [ -d "$OSX_ROOT/pkgs/osxcross/target/bin" ] && for n in clang clang++ ar ranlib libtool; do mk "$n"; done
   [ -x "$OSX_ROOT/pkgs/osxcross/target/bin/xcrun" ] && mk xcrun
   exit 0
 fi
@@ -224,7 +225,11 @@ install_osxcross() {
   cd "$SRC/osxcross"
   mkdir -p tarballs
   sdk_cached="$CACHE_DIR/MacOSX${DEFAULT_SDK_VER}.sdk.tar.xz"
-  if [ -n "${SDK_TARBALL_URL:-}" ]; then [ -f "$sdk_cached" ] || curl -fL -o "$sdk_cached" "$SDK_TARBALL_URL" || true; fi
+  if [ -n "${SDK_TARBALL_URL:-}" ]; then
+    rm -f "$sdk_cached"
+    curl -fL -o "$sdk_cached" "$SDK_TARBALL_URL" || true
+    [ -f "$sdk_cached" ] || { echo "SDK tarball not found"; exit 1; }
+  fi
   if [ ! -f "$sdk_cached" ]; then
     if [ -n "${XCODE_XIP:-}" ] && [ -f "${XCODE_XIP:-}" ]; then ./tools/gen_sdk_package_pbzx.sh "$XCODE_XIP"; mv MacOSX*.sdk.tar.* "$sdk_cached"
     else curl -fL -o "$sdk_cached" "https://github.com/joseluisq/macosx-sdks/releases/download/${DEFAULT_SDK_VER}/MacOSX${DEFAULT_SDK_VER}.sdk.tar.xz" || true
@@ -232,7 +237,14 @@ install_osxcross() {
   fi
   [ -f "$sdk_cached" ] || { echo "SDK tarball not found"; exit 1; }
   cp "$sdk_cached" tarballs/
-  (set +e; CC="$(command -v gcc)" CXX="$(command -v g++)" CONFIG_SHELL=/bin/bash UNATTENDED=1 ENABLE_ARCHS="$DEFAULT_ARCH" TARGET_DIR="$TGT" ./build.sh)
+  TGT_CACHE="$CACHE_DIR/osxcross-target"
+  if [ -z "${SDK_TARBALL_URL:-}" ] && [ -d "$TGT_CACHE/bin" ]; then
+    rm -rf "$TGT"
+    cp -R "$TGT_CACHE" "$TGT"
+  else
+    UNATTENDED=1 ENABLE_ARCHS="$DEFAULT_ARCH" TARGET_DIR="$TGT" SKIP_BUILD=cctools-port ./build.sh
+    cp -R "$TGT" "$TGT_CACHE"
+  fi
   cat > "$OSX_ROOT/env/osxcross-activate.sh" <<EOF
 export PATH="$TGT/bin:\$PATH"
 export SDKROOT="\$(xcrun --show-sdk-path)"
@@ -247,22 +259,16 @@ EOF
   cd "$SCRIPT_DIR"
 }
 
-ensure_pyenv() {
-  mirror="$CACHE_DIR/pyenv"
-  if [ ! -d "$mirror" ]; then git clone --depth 1 "$PYENV_REPO" "$mirror"; fi
-  if [ ! -d "$OSX_ROOT/pkgs/pyenv" ]; then cp -R "$mirror" "$OSX_ROOT/pkgs/pyenv"; fi
-}
-
 install_python() {
   ver="$1"
   [ -n "$ver" ] || { echo "python version required"; exit 1; }
   apt_install $APT_PYBUILD
-  ensure_pyenv
-  "$OSX_ROOT/pkgs/pyenv/plugins/python-build/install.sh" >/dev/null 2>&1 || true
   prefix="$OSX_ROOT/pkgs/python/$ver"
-  mkdir -p "$(dirname "$prefix")"
-  if [ ! -x "$prefix/bin/python" ]; then PYTHON_BUILD_CACHE_PATH="$CACHE_DIR/python-build" "$OSX_ROOT/pkgs/pyenv/plugins/python-build/bin/python-build" "$ver" "$prefix"; fi
-  "$prefix/bin/python" -m pip install -U "pip>=25.1"
+  mkdir -p "$prefix/bin"
+  ln -sf /usr/bin/python3 "$prefix/bin/python"
+  ln -sf /usr/bin/python3 "$prefix/bin/python3"
+  ln -sf /usr/bin/pip3 "$prefix/bin/pip"
+  ln -sf /usr/bin/pip3 "$prefix/bin/pip3"
   rm -f "$OSX_ROOT/pkgs/python/current"
   ln -s "$prefix" "$OSX_ROOT/pkgs/python/current"
   "$OSX_ROOT/shims/osx-shimgen" --bulk || true

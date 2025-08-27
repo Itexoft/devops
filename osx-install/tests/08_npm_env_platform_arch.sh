@@ -6,4 +6,4 @@ ver=22.7.0
 out=$("$OSX_ROOT/bin/osx-npm" config list -l)
 printf '%s' "$out" | grep -q 'platform.*darwin'
 printf '%s' "$out" | grep -q "arch.*$DEFAULT_ARCH"
-printf '%s' "$out" | grep -q "target_arch.*$DEFAULT_ARCH"
+printf '%s' "$out" | grep -q "target-arch.*$DEFAULT_ARCH"
