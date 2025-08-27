@@ -84,7 +84,6 @@ if [ "${1:-}" = install ] && [ "${2:-}" = python ]; then
 : "${OSX_ROOT:=/opt/osx}"
 ver="${3:-3.11}"
 for d in "$OSX_ROOT/pkgs/python/$ver" "$OSX_ROOT/pkgs/python/$ver"*; do [ -d "$d" ] && { ln -sfn "$d" "$OSX_ROOT/pkgs/python/current"; exit 0; }; done
-mkdir -p "$OSX_ROOT/cache"
 lst="$(curl -fsL https://www.python.org/ftp/python/)"
 case "$ver" in
 *.*.*) fv="$ver" ;;
@@ -96,9 +95,9 @@ if [ ! -x "$dir/bin/python3" ]; then
 command -v 7z >/dev/null 2>&1 || /usr/bin/sudo apt-get install -y p7zip-full
 command -v bsdtar >/dev/null 2>&1 || /usr/bin/sudo apt-get install -y libarchive-tools
 mkdir -p "$(dirname "$dir")"
-curl -fL "https://www.python.org/ftp/python/$fv/python-$fv-macos11.pkg" -o "$OSX_ROOT/cache/python-$fv.pkg"
 tmp="$(mktemp -d)"
-7z x "$OSX_ROOT/cache/python-$fv.pkg" -o"$tmp" >/dev/null
+curl -fL "https://www.python.org/ftp/python/$fv/python-$fv-macos11.pkg" -o "$tmp/pkg"
+7z x "$tmp/pkg" -o"$tmp" >/dev/null
 rm -rf "$tmp/Resources"
 bsdtar -xf "$tmp/Python_Framework.pkg/Payload" -C "$tmp"
 mv "$tmp/Versions/${fv%.*}" "$dir"
@@ -113,13 +112,14 @@ if [ "${1:-}" = install ] && [ "${2:-}" = node ]; then
 : "${DEFAULT_ARCH:=arm64}"
 ver="${3:-22}"
 for d in "$OSX_ROOT/pkgs/node/$ver"*; do [ -d "$d" ] && { ln -sfn "$d" "$OSX_ROOT/pkgs/node/current"; exit 0; }; done
-mkdir -p "$OSX_ROOT/cache"
 fv="$(curl -fsL https://nodejs.org/dist/index.json | grep -o "v${ver}[0-9.]*" | head -n1 | tr -d v)"
 dir="$OSX_ROOT/pkgs/node/$fv"
 if [ ! -x "$dir/bin/node" ]; then
 mkdir -p "$dir"
-curl -fL "https://nodejs.org/dist/v$fv/node-v$fv-darwin-$DEFAULT_ARCH.tar.gz" -o "$OSX_ROOT/cache/node-v$fv-darwin-$DEFAULT_ARCH.tar.gz"
-tar -xzf "$OSX_ROOT/cache/node-v$fv-darwin-$DEFAULT_ARCH.tar.gz" -C "$dir" --strip-components 1
+tmp="$(mktemp -d)"
+curl -fL "https://nodejs.org/dist/v$fv/node-v$fv-darwin-$DEFAULT_ARCH.tar.gz" -o "$tmp/node.tar.gz"
+tar -xzf "$tmp/node.tar.gz" -C "$dir" --strip-components 1
+rm -rf "$tmp"
 fi
 ln -sfn "$dir" "$OSX_ROOT/pkgs/node/current"
 exit 0
