@@ -13,6 +13,7 @@ cd "$SCRIPT_DIR"
 : "${ARCHES:=arm64}"
 : "${XCODE_XIP:=}"
 : "${SDK_TARBALL_URL:=}"
+: "${OSX_RUN_SKIP_SHELL:=1}"
 export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
 /usr/bin/sudo apt-get update
 /usr/bin/sudo apt-get install -y build-essential clang lld cmake git patch python3 xz-utils curl libssl-dev liblzma-dev libxml2-dev bzip2 cpio zlib1g-dev uuid-dev ninja-build pkg-config ca-certificates
