@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-if ! command -v shellcheck >/dev/null 2>&1; then /usr/bin/sudo apt-get update; /usr/bin/sudo apt-get install -y shellcheck; fi
+if ! command -v shellcheck >/dev/null 2>&1 || ! command -v file >/dev/null 2>&1; then /usr/bin/sudo apt-get update; /usr/bin/sudo apt-get install -y shellcheck file; fi
 mkdir -p artifacts
 printf 'bash %s\n' "$(bash --version | head -n1)"
 printf 'zsh %s\n' "$(zsh --version 2>/dev/null | head -n1)"
@@ -12,6 +12,8 @@ printf 'python %s\n' "$(python -V 2>&1)"
 printf 'shellcheck %s\n' "$(shellcheck --version 2>/dev/null | head -n1)"
 pass=0
 fail=0
+RUN="$(pwd)/osx-run/osx-run.sh"
+export RUN
 run(){
 t="$1"
 name=$(basename "$t")
@@ -21,6 +23,7 @@ home=$(mktemp -d)
 OSX_ROOT="$work/opt/osx"
 HOME="$home"
 export OSX_ROOT HOME
+testing/stub-env.sh "$OSX_ROOT"
 cmd=("$t")
 [ -n "${TRACE:-}" ] && cmd=(bash -x "$t")
 if "${cmd[@]}" >"$log" 2>&1; then

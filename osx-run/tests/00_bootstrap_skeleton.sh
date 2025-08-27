@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-"$INSTALL" >/dev/null
+"$RUN" true >/dev/null
 [ -d "$OSX_ROOT/bin" ]
 [ -d "$OSX_ROOT/env" ]
 [ -d "$OSX_ROOT/shims" ]
