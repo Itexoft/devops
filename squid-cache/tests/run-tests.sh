@@ -44,11 +44,6 @@ else
  done
 fi
 printf 'bash %s\n' "$(bash --version | head -n1)"
-printf 'zsh %s\n' "$(zsh --version 2>/dev/null | head -n1)"
-printf 'clang %s\n' "$(clang --version 2>/dev/null | head -n1)"
-printf 'lld %s\n' "$(ld.lld --version 2>/dev/null | head -n1)"
-printf 'npm %s\n' "$(npm -v 2>/dev/null)"
-printf 'node %s\n' "$(node -v 2>/dev/null)"
 printf 'python %s\n' "$(python -V 2>&1)"
 printf 'shellcheck %s\n' "$(shellcheck --version 2>/dev/null | head -n1)"
 for t in "${tests[@]}"; do
