@@ -3,7 +3,8 @@ set -Eeuo pipefail
 run(){
  log="$1"
  shift
- exec 3>&1
- "$@" >"$log" 2>&1
+ base=$(basename "$log")
+ tmp="/tmp/$base"
+ "$@" 2>&1 | tee "$tmp" | tee "$log" | sed '/^+/d'
+ return "${PIPESTATUS[0]}"
 }
-"$@"
