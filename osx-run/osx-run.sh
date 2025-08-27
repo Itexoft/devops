@@ -83,10 +83,14 @@ fi
 if [ "${1:-}" = install ] && [ "${2:-}" = python ]; then
 : "${OSX_ROOT:=/opt/osx}"
 ver="${3:-3.11}"
-for d in "$OSX_ROOT/pkgs/python/$ver"*; do [ -d "$d" ] && { ln -sfn "$d" "$OSX_ROOT/pkgs/python/current"; exit 0; }; done
+for d in "$OSX_ROOT/pkgs/python/$ver" "$OSX_ROOT/pkgs/python/$ver"*; do [ -d "$d" ] && { ln -sfn "$d" "$OSX_ROOT/pkgs/python/current"; exit 0; }; done
 mkdir -p "$OSX_ROOT/cache"
-fv="$(curl -fsL https://www.python.org/ftp/python/ | grep -o "${ver}[.][0-9][0-9]*" | sort -V | tail -n1)"
-[ -n "$fv" ] || fv="$ver.0"
+lst="$(curl -fsL https://www.python.org/ftp/python/)"
+case "$ver" in
+*.*.*) fv="$ver" ;;
+*.*) fv=""; for cand in $(printf '%s\n' "$lst" | grep -o "${ver}[.][0-9][0-9]*" | sort -Vr); do curl -fsI "https://www.python.org/ftp/python/$cand/python-$cand-macos11.pkg" && { fv="$cand"; break; }; done; [ -n "$fv" ] || fv="$ver.0" ;;
+*) fv=""; for mv in $(printf '%s\n' "$lst" | grep -o "${ver}[.][0-9][0-9]*" | sort -Vr); do for cand in $(printf '%s\n' "$lst" | grep -o "${mv}[.][0-9][0-9]*" | sort -Vr); do curl -fsI "https://www.python.org/ftp/python/$cand/python-$cand-macos11.pkg" && { fv="$cand"; break 2; }; done; done; [ -n "$fv" ] || fv="$ver.0" ;;
+esac
 dir="$OSX_ROOT/pkgs/python/$fv"
 if [ ! -x "$dir/bin/python3" ]; then
 command -v bsdtar >/dev/null 2>&1 || /usr/bin/sudo apt-get install -y libarchive-tools
