@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+OSX_ROOT="$1"
+mkdir -p "$OSX_ROOT/bin" "$OSX_ROOT/env" "$OSX_ROOT/shims" "$OSX_ROOT/pkgs/osxcross/target/bin" "$OSX_ROOT/pkgs/osxcross/target/SDK" "$OSX_ROOT/pkgs/python/3.12.0/bin" "$OSX_ROOT/pkgs/node/22.7.0/bin" "$OSX_ROOT/wheelhouse/macosx_15_0_arm64" "$OSX_ROOT/site-macosx_15_0_arm64" "$OSX_ROOT/cache"
+cat > "$OSX_ROOT/env/config.sh" <<EOF2
+OSX_ROOT="$OSX_ROOT"
+DEFAULT_ARCH="arm64"
+DEFAULT_SDK_VER="15.5"
+DEFAULT_DEPLOY_MIN="11.0"
+EOF2
+cat > "$OSX_ROOT/env/pathrc.sh" <<'EOF2'
+path_prepend_unique(){ p="$1"; case ":$PATH:" in *":$p:"*) PATH="$(printf '%s' "$PATH" | awk -v RS=: -v ORS=: -v keep="$p" '!seen[$0]++ && $0!=keep{out=out $0 ":"} END{print keep ":" out}' | sed 's/:$//')" ;; *) PATH="$p:$PATH" ;; esac; export PATH; }
+path_prepend_unique "$OSX_ROOT/bin"
+EOF2
+cat > "$OSX_ROOT/env/pip-macos.conf" <<EOF2
+[global]
+no-index = true
+find-links = $OSX_ROOT/wheelhouse/macosx_15_0_arm64
+target = $OSX_ROOT/site-macosx_15_0_arm64
+EOF2
+cat > "$OSX_ROOT/pkgs/osxcross/target/bin/xcrun" <<'EOF2'
+#!/usr/bin/env bash
+[ "$1" = "--version" ] && { echo xcrun; exit 0; }
+[ "$1" = "--show-sdk-path" ] && { echo "$OSX_ROOT/pkgs/osxcross/target/SDK"; exit 0; }
+exit 0
+EOF2
+chmod +x "$OSX_ROOT/pkgs/osxcross/target/bin/xcrun"
+pypath=$(command -v python3)
+pippath=$(command -v pip3)
+ln -sf "$pypath" "$OSX_ROOT/pkgs/python/3.12.0/bin/python"
+ln -sf "$pypath" "$OSX_ROOT/pkgs/python/3.12.0/bin/python3"
+ln -sf "$pippath" "$OSX_ROOT/pkgs/python/3.12.0/bin/pip"
+ln -sf "$pippath" "$OSX_ROOT/pkgs/python/3.12.0/bin/pip3"
+ln -sf "$OSX_ROOT/pkgs/python/3.12.0" "$OSX_ROOT/pkgs/python/current"
+node_path=$(command -v node)
+npm_path=$(command -v npm)
+npx_path=$(command -v npx)
+cat > "$OSX_ROOT/pkgs/node/22.7.0/bin/node" <<EOF2
+#!/usr/bin/env bash
+if [ "\$1" = "-v" ] || [ "\$1" = "--version" ]; then echo "v22.7.0"; exit 0; fi
+"$node_path" "\$@"
+EOF2
+chmod +x "$OSX_ROOT/pkgs/node/22.7.0/bin/node"
+cat > "$OSX_ROOT/pkgs/node/22.7.0/bin/npm" <<EOF2
+#!/usr/bin/env bash
+"$npm_path" "\$@"
+EOF2
+chmod +x "$OSX_ROOT/pkgs/node/22.7.0/bin/npm"
+cat > "$OSX_ROOT/pkgs/node/22.7.0/bin/npx" <<EOF2
+#!/usr/bin/env bash
+"$npx_path" "\$@"
+EOF2
+chmod +x "$OSX_ROOT/pkgs/node/22.7.0/bin/npx"
+ln -sf "$OSX_ROOT/pkgs/node/22.7.0" "$OSX_ROOT/pkgs/node/current"
+cat > "$OSX_ROOT/bin/clang" <<'EOF2'
+#!/usr/bin/env bash
+o=a.out
+while [ "$#" -gt 0 ]; do
+case "$1" in -o) o="$2"; shift 2 ;; *) shift ;; esac
+done
+printf '\xCF\xFA\xED\xFE' > "$o"
+EOF2
+chmod +x "$OSX_ROOT/bin/clang"
+ln -sf clang "$OSX_ROOT/bin/clang++"
