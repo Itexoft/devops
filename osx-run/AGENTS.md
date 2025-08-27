@@ -1,2 +1,7 @@
 - osx-run.sh is bash with set -Eeuo pipefail and no comments
 - env-setup.txt lists commands to fetch resources and install osxcross, Python 3.11, and Node 22 with osx-run.sh
+- install osxcross pulls build-essential, clang, lld, cmake, git, patch, python3, xz-utils, curl, libssl-dev, liblzma-dev, libxml2-dev, bzip2, cpio, zlib1g-dev, uuid-dev, ninja-build, pkg-config, ca-certificates, and ld64.lld
+- the environment uses osxcross to emulate macOS so tools produce Darwin binaries
+- run ./osx-run.sh install osxcross to build the toolchain under \$OSX_ROOT; install python or node with ./osx-run.sh install python `<ver>` and ./osx-run.sh install node `<ver>`
+- invoking osx-run.sh `<command>` executes the command inside a macOS-like environment; examples: ./osx-run.sh xcrun clang --version, ./osx-run.sh python3 -V, ./osx-run.sh npm --version
+- calling osx-run.sh without arguments configures PATH so subsequent shells use the macOS-targeting toolchain

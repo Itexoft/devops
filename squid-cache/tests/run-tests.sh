@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-. "$PWD/lib/testing/utils.sh"
+dir="${BASH_SOURCE[0]%/*}"
+. "$dir/../../lib/testing/utils.sh"
 pass=0
 fail=0
-dir=$(cd "$(dirname "$0")" && pwd)
+dir=$(cd "$dir" && pwd)
 mkdir -p "$dir/../../artifacts"
 tmp_run=$(mktemp -d)
 cp "$dir/../squid-cache.sh" "$tmp_run"
@@ -14,6 +15,7 @@ test_run(){
  t="$1"
  name=$(basename "$t")
  log="$dir/../../artifacts/${name%.sh}.log"
+ trace="/tmp/${name%.sh}.log"
  work=$(mktemp -d)
  home=$(mktemp -d)
  OSX_ROOT="$work/opt/osx"
@@ -21,7 +23,7 @@ test_run(){
  export OSX_ROOT HOME
  mkdir -p "$OSX_ROOT"
  echo "$name START"
- if run "$log" bash -x "$t"; then
+ if run "$log" bash -x "$t" 3>>"$trace"; then
   echo "$name PASS"
   pass=$((pass+1))
   [ -n "${TRACE:-}" ] && cat "/tmp/${name%.sh}.log"

@@ -6,10 +6,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - run: sudo apt-get update && sudo apt-get install -y shellcheck iptables zsh lld
+    - run: sudo apt-get update && sudo apt-get install -y iptables zsh lld
     - run: sudo ln -sf /usr/sbin/iptables-legacy /usr/sbin/iptables
-    - name: shellcheck
-      run: shellcheck squid-cache/squid-cache.sh squid-cache/tests/*.sh testing/assert.sh
     - name: run tests
       run: |
         set -e

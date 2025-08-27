@@ -1,8 +1,0 @@
-agents describes osx-run
-osx-run creates a reproducible macOS build environment on Linux
-the script installs osxcross, Python 3.11, and Node 22, sets cross-compilation variables, and adds osx-run to PATH
-usage
-1. download osx-run.sh and make it executable
-2. run osx-run.sh install osxcross to prepare the toolchain
-3. optionally run osx-run.sh install python 3.11 and osx-run.sh install node 22
-4. run osx-run.sh <command> to use the prepared environment
