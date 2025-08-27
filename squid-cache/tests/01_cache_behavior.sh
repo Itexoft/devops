@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-systemctl is-system-running >/dev/null 2>&1 || exit 0
+if ! command -v systemctl >/dev/null 2>&1; then exit 0; fi
+if ! systemctl is-system-running >/dev/null 2>&1; then exit 0; fi
+if ! command -v iptables >/dev/null 2>&1; then exit 0; fi
 o=$(mktemp)
 "$SQUID" start >"$o"
 [ "$(tail -n1 "$o")" = started ]

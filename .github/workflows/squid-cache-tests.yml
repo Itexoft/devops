@@ -11,13 +11,13 @@ jobs:
     - name: run tests
       run: |
         set -e
-        out=$(mktemp)
-        SQUID="$PWD/squid-cache/squid-cache.sh" TRACE=1 testing/run-tests.sh squid-cache/tests/00_start_iptables_cert.sh squid-cache/tests/01_cache_behavior.sh squid-cache/tests/02_python_install.sh | tee "$out"
-        line=$(grep '^t1=' "$out" | tail -n1)
-        eval "$line"
-        {
-          echo "first_download1=$t1"
-          echo "first_download2=$t2"
-          echo "second_download1=$t3"
-          echo "second_download2=$t4"
-        } >> "$GITHUB_STEP_SUMMARY"
+        SQUID="$PWD/squid-cache/squid-cache.sh" TRACE=1 testing/run-tests.sh squid-cache/tests/00_start_iptables_cert.sh squid-cache/tests/01_cache_behavior.sh squid-cache/tests/02_python_install.sh
+        if line=$(grep '^t1=' artifacts/01_cache_behavior.log 2>/dev/null | tail -n1); then
+          eval "$line"
+          {
+            echo "first_download1=$t1"
+            echo "first_download2=$t2"
+            echo "second_download1=$t3"
+            echo "second_download2=$t4"
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
