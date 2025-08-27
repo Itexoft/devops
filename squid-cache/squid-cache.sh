@@ -43,7 +43,7 @@ ensure_dirs() {
 }
 
 cache_dir_pick() {
-  if [ -x "$BASE_DIR/squid" ]; then
+  if [ -x "$BASE_DIR/squid-cache" ]; then
     echo "$CACHE_IF_STANDALONE_BIN"
   else
     echo "$CACHE_IF_SYSTEM"
@@ -140,7 +140,7 @@ iptables_disable() {
     while iptables -t nat -S "$IPTABLES_CHAIN" | grep -q "^-A $IPTABLES_CHAIN"; do
       local rule
       rule="$(iptables -t nat -S "$IPTABLES_CHAIN" | grep "^-A $IPTABLES_CHAIN" | head -n1 | sed 's/^-A /-D /')"
-      iptables -t nat $rule || true
+      iptables -t nat "$rule" || true
     done
     iptables -t nat -X "$IPTABLES_CHAIN" || true
   fi
