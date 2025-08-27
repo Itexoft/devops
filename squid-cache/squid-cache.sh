@@ -21,7 +21,7 @@ CA_PEM="$CA_DIR/ca.pem"
 CA_TRUST_NAME="squid-mitm"
 CA_DAYS="3650"
 CA_SUBJ="/CN=$HOSTNAME_TAG/O=$HOSTNAME_TAG/L=Local/C=NA"
-SSL_DB_BASE="${TMPDIR:-$(mktemp -d)}"
+SSL_DB_BASE="/var/lib/squid-mitm"
 SSL_DB_DIR="$SSL_DB_BASE/ssl_db"
 CACHE_IF_STANDALONE_BIN="$BASE_DIR/squid-cache"
 CACHE_IF_SYSTEM="/tmp/squid-cache"
@@ -45,7 +45,6 @@ ensure_dirs() {
 
 prepare_ssl_db_dir() {
   rm -rf "$SSL_DB_DIR"
-  install -d -m 0755 -o "$SQUID_USER" -g "$SQUID_GROUP" "$SSL_DB_BASE" || { echo "cannot create ssl db dir $SSL_DB_BASE"; rm -f "$LOCK_FILE"; exit 1; }
   install -d -m 0755 -o "$SQUID_USER" -g "$SQUID_GROUP" "$SSL_DB_DIR" || { echo "cannot create ssl db dir $SSL_DB_DIR"; rm -f "$LOCK_FILE"; exit 1; }
 }
 
