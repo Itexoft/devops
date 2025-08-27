@@ -13,7 +13,7 @@ cd "$SCRIPT_DIR"
 : "${ARCHES:=arm64}"
 : "${XCODE_XIP:=}"
 : "${SDK_TARBALL_URL:=}"
-export DEBIAN_FRONTEND=noninteractive
+export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
 /usr/bin/sudo apt-get update
 /usr/bin/sudo apt-get install -y build-essential clang lld cmake git patch python3 xz-utils curl libssl-dev liblzma-dev libxml2-dev bzip2 cpio zlib1g-dev uuid-dev ninja-build pkg-config ca-certificates
 f=""
@@ -64,10 +64,10 @@ set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 EOF3
 printf '#include <stdio.h>\nint main(){puts("ok");}\n' > "$SCRIPT_DIR/t.c"
 PATH="$OSXCROSS_ROOT/target/bin:$PATH" SDKROOT="$(xcrun --show-sdk-path)" MACOSX_DEPLOYMENT_TARGET="$DEPLOY_MIN" xcrun clang -arch arm64 -mmacos-version-min="$DEPLOY_MIN" "$SCRIPT_DIR/t.c" -o "$SCRIPT_DIR/t_arm64"
-command -v file >/dev/null 2>&1 && file "$SCRIPT_DIR/t_arm64" || true
+if command -v file >/dev/null 2>&1; then file "$SCRIPT_DIR/t_arm64"; fi
 echo OK
 . "$OSXCROSS_ROOT/env/activate"
-if [ -t 0 ]; then
+if [ -t 0 ] && [ -z "${OSX_RUN_SKIP_SHELL:-}" ]; then
 SHELL_BIN="${SHELL:-/bin/bash}"
 exec "$SHELL_BIN" -i
 fi
@@ -84,7 +84,7 @@ SITEDIR="$OSX_ROOT/site-$PLATFORM"
 export WHEELHOUSE
 path_prepend_unique() {
  d="$1"
- [ -n "$d" ] && [ -d "$d" ] || return 0
+ if [ -z "$d" ] || [ ! -d "$d" ]; then return 0; fi
  case ":$PATH:" in *":$d:"*) ;; *) PATH="$d:$PATH" ;; esac
 }
 pick_latest_dir() {
