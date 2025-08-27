@@ -48,6 +48,7 @@ ensure_dirs() {
 
 prepare_ssl_db_dir() {
   local helper="$1"
+  rm -rf "$SSL_DB_DIR"
   "$helper" -c -s "$SSL_DB_DIR" -M 20MB
   chown -R "$SQUID_USER:$SQUID_GROUP" "$SSL_DB_DIR"
 }
@@ -187,7 +188,8 @@ iptables_disable() {
     while iptables -t nat -S "$IPTABLES_CHAIN" | grep -q "^-A $IPTABLES_CHAIN"; do
       local rule
       rule="$(iptables -t nat -S "$IPTABLES_CHAIN" | grep "^-A $IPTABLES_CHAIN" | head -n1 | sed 's/^-A /-D /')"
-      iptables -t nat "$rule" || true
+      read -r -a parts <<< "$rule"
+      iptables -t nat "${parts[@]}" || true
     done
     iptables -t nat -X "$IPTABLES_CHAIN" || true
   fi

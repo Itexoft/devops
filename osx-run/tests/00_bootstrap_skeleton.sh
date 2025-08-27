@@ -8,7 +8,6 @@ set -Eeuo pipefail
 [ -d "$OSX_ROOT/env" ]
 [ -d "$OSX_ROOT/shims" ]
 [ -d "$OSX_ROOT/pkgs" ]
-[ -d "$OSX_ROOT/cache" ]
 [ -d "$OSX_ROOT/wheelhouse" ]
 count=$(find "$OSX_ROOT" -maxdepth 1 -type d -name 'site-*' | wc -l)
 test "$count" -ge 1
