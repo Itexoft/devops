@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+. "$PWD/lib/testing/utils.sh"
 export OSX_RUN_SKIP_SHELL=1
 stub_env(){
  OSX_ROOT="$1"
@@ -101,7 +102,7 @@ cp "$dir/../osx-run.sh" "$tmp_run"
 RUN="$tmp_run/osx-run.sh"
 chmod +x "$RUN"
 export RUN
-run(){
+test_run(){
  t="$1"
  name=$(basename "$t")
  log="$dir/../../artifacts/${name%.sh}.log"
@@ -112,14 +113,14 @@ run(){
  export OSX_ROOT HOME
  stub_env "$OSX_ROOT"
  echo "$name START"
- if "$dir/../../lib/testing/utils.sh" run "$log" bash -x "$t"; then
+ if run "$log" bash -x "$t"; then
   echo "$name PASS"
   pass=$((pass+1))
-  [ -n "${TRACE:-}" ] && cat "$log"
+  [ -n "${TRACE:-}" ] && cat "/tmp/${name%.sh}.log"
  else
   echo "$name FAIL"
   fail=$((fail+1))
-  cat "$log"
+  echo "/tmp/${name%.sh}.log"
  fi
  rm -rf "$work" "$home"
 }
@@ -145,7 +146,7 @@ printf 'node %s\n' "$(node -v 2>/dev/null)"
 printf 'python %s\n' "$(python -V 2>&1)"
 printf 'shellcheck %s\n' "$(shellcheck --version 2>/dev/null | head -n1)"
 for t in "${tests[@]}"; do
- run "$t"
+ test_run "$t"
 done
 echo "passed $pass failed $fail"
 rm -rf "$tmp_run"

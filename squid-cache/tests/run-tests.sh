@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+. "$PWD/lib/testing/utils.sh"
 pass=0
 fail=0
 dir=$(cd "$(dirname "$0")" && pwd)
@@ -9,7 +10,7 @@ cp "$dir/../squid-cache.sh" "$tmp_run"
 SQUID="$tmp_run/squid-cache.sh"
 chmod +x "$SQUID"
 export SQUID
-run(){
+test_run(){
  t="$1"
  name=$(basename "$t")
  log="$dir/../../artifacts/${name%.sh}.log"
@@ -20,14 +21,14 @@ run(){
  export OSX_ROOT HOME
  mkdir -p "$OSX_ROOT"
  echo "$name START"
- if "$dir/../../lib/testing/utils.sh" run "$log" bash -x "$t"; then
+ if run "$log" bash -x "$t"; then
   echo "$name PASS"
   pass=$((pass+1))
-  [ -n "${TRACE:-}" ] && cat "$log"
+  [ -n "${TRACE:-}" ] && cat "/tmp/${name%.sh}.log"
  else
   echo "$name FAIL"
   fail=$((fail+1))
-  cat "$log"
+  echo "/tmp/${name%.sh}.log"
  fi
  rm -rf "$work" "$home"
 }
@@ -48,7 +49,7 @@ printf 'bash %s\n' "$(bash --version | head -n1)"
 printf 'python %s\n' "$(python -V 2>&1)"
 printf 'shellcheck %s\n' "$(shellcheck --version 2>/dev/null | head -n1)"
 for t in "${tests[@]}"; do
- run "$t"
+ test_run "$t"
 done
 echo "passed $pass failed $fail"
 rm -rf "$tmp_run"
