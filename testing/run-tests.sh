@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-INSTALL="./osx-install/osx-install.sh"
-export INSTALL
 if ! command -v shellcheck >/dev/null 2>&1; then /usr/bin/sudo apt-get update; /usr/bin/sudo apt-get install -y shellcheck; fi
 mkdir -p artifacts
 printf 'bash %s\n' "$(bash --version | head -n1)"
@@ -23,9 +21,9 @@ home=$(mktemp -d)
 OSX_ROOT="$work/opt/osx"
 HOME="$home"
 export OSX_ROOT HOME
-  cmd=("$t")
-  [ -n "${TRACE:-}" ] && cmd=(bash -x "$t")
-  if "${cmd[@]}" >"$log" 2>&1; then
+cmd=("$t")
+[ -n "${TRACE:-}" ] && cmd=(bash -x "$t")
+if "${cmd[@]}" >"$log" 2>&1; then
 echo "$name PASS"
 pass=$((pass+1))
 else
@@ -36,13 +34,17 @@ rm -rf "$work" "$home"
 }
 tests=()
 if [ "$#" -eq 0 ]; then
-for f in osx-install/tests/*.sh; do
+echo "usage: $0 <dir|tests...>"
+exit 1
+fi
+if [ -d "$1" ]; then
+for f in "$1"/*.sh; do
 tests+=("$f")
-done
+ done
 else
 for a in "$@"; do
-tests+=("osx-install/tests/$a")
-done
+tests+=("$a")
+ done
 fi
 for t in "${tests[@]}"; do
 run "$t"
