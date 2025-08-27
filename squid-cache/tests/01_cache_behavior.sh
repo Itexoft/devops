@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-if ! command -v iptables >/dev/null 2>&1; then exit 0; fi
-iptables -t nat -L >/dev/null 2>&1 || exit 0
 o=$(mktemp)
 base=$(dirname "$SQUID")
 bash "$SQUID" start >"$o"
@@ -52,7 +50,6 @@ bash "$SQUID" stop >"$o"
 [ "$(tail -n1 "$o")" = stopped ]
 [ -f "$base/mitm_ca/ca.crt" ]
 [ ! -f /usr/local/share/ca-certificates/squid-mitm.crt ]
-if iptables -t nat -S | grep -q SQUID_LOCAL; then false; fi
 if [ -f "$base/run/squid.pid" ]; then false; fi
 c2=$(find "$cache" -type f | wc -l)
 [ "$c2" -ge "$c" ]
