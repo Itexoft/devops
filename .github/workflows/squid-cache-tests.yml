@@ -6,8 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - run: sudo apt-get update && sudo apt-get install -y iptables zsh lld
-    - run: sudo ln -sf /usr/sbin/iptables-legacy /usr/sbin/iptables
+    - run: sudo apt-get update && sudo apt-get install -y zsh lld
     - name: run tests
       run: |
         set -e
