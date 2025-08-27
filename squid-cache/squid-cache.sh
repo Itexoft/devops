@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
 
 ACTION="${1:-}"
 BASE_DIR="$(cd "$(dirname "$0")" && pwd -P)"
