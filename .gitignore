@@ -100,3 +100,4 @@ squid-cache/cache.log
 squid-cache/*.deb
 squid-cache/squid-extracted/
 squid-cache/squid-common-extracted/
+squid-cache/tun2socks

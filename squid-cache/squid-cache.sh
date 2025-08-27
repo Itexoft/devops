@@ -14,7 +14,6 @@ SQUID_COMMON_PKG="squid-common"
 SQUID_USER="proxy"
 SQUID_GROUP="proxy"
 HTTP_PORT="3128"
-HTTPS_PORT="3129"
 HOSTNAME_TAG="squid-mitm"
 CA_DIR="$BASE_DIR/mitm_ca"
 CA_KEY="$CA_DIR/ca.key"
@@ -32,7 +31,15 @@ CACHE_SIZE_MB="10240"
 MEM_CACHE_MB="128"
 FILE_MIMES_REGEX="application/(octet-stream|zip|x-zip-compressed|x-gzip|x-xz|x-bzip2|x-7z-compressed|x-tar|x-debian-package|x-rpm|java-archive|gzip|zstd|x-iso9660-image|vnd\\.ms-cab-compressed|x-msdownload)|image/.*|video/.*|audio/.*|application/pdf"
 REFRESH_LONG_MIN="525600"
-IPTABLES_CHAIN="SQUID_LOCAL"
+TUN_DEV="mitm0"
+TUN_ADDR="198.18.0.1"
+TUN_CIDR="198.18.0.1/15"
+ROUTE_TABLE_BYPASS_ID="200"
+T2S_VERSION="v2.6.0"
+T2S_BIN="$BASE_DIR/tun2socks"
+T2S_PID="$PID_DIR/tun2socks.pid"
+ROUTE_FILE="$LOCK_DIR/default.route"
+[ -f "$BASE_DIR/tun2socks.conf" ] && . "$BASE_DIR/tun2socks.conf"
 
 require_root() {
   if [ "${EUID:-$(id -u)}" -ne 0 ]; then
@@ -60,7 +67,7 @@ cache_dir_pick() {
 install_packages() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
-  apt-get install -y ca-certificates iptables libecap3
+  apt-get install -y ca-certificates iproute2 unzip curl libecap3 libnetfilter-conntrack3
   if [ ! -x "$SQUID_BIN" ] || ! "$SQUID_BIN" -v 2>&1 | grep -q -- '--enable-ssl-crtd'; then
     rm -f "$BASE_DIR"/${SQUID_PKG}_*.deb "$BASE_DIR"/${SQUID_COMMON_PKG}_*.deb
     apt-get download "$SQUID_PKG" "$SQUID_COMMON_PKG"
@@ -138,8 +145,7 @@ visible_hostname $HOSTNAME_TAG
 pid_filename $SQUID_PID
 acl localnet src all
 acl step1 at_step SslBump1
-http_port $HTTP_PORT intercept
-https_port $HTTPS_PORT intercept ssl-bump generate-host-certificates=on dynamic_cert_mem_cache_size=4MB cert=$CA_PEM
+http_port $HTTP_PORT ssl-bump cert=$CA_PEM generate-host-certificates=on dynamic_cert_mem_cache_size=4MB
 sslcrtd_program $helper -s $SSL_DB_DIR -M 20MB
 sslcrtd_children 5 startup=1 idle=1
 unlinkd_program $BASE_DIR/unlinkd
@@ -163,35 +169,90 @@ EOF
   chown "$SQUID_USER:$SQUID_GROUP" "$SQUID_CONF"
 }
 
-iptables_enable() {
-  local squid_uid
-  if ! iptables -t nat -L >/dev/null 2>&1; then
-    return
-  fi
-  squid_uid="$(id -u "$SQUID_USER")"
-  iptables -t nat -N "$IPTABLES_CHAIN" 2>/dev/null || true
-  iptables -t nat -C OUTPUT -j "$IPTABLES_CHAIN" 2>/dev/null || iptables -t nat -A OUTPUT -j "$IPTABLES_CHAIN"
-  iptables -t nat -C "$IPTABLES_CHAIN" -m owner --uid-owner "$squid_uid" -j RETURN 2>/dev/null || iptables -t nat -A "$IPTABLES_CHAIN" -m owner --uid-owner "$squid_uid" -j RETURN
-  iptables -t nat -C "$IPTABLES_CHAIN" -d 127.0.0.0/8 -j RETURN 2>/dev/null || iptables -t nat -A "$IPTABLES_CHAIN" -d 127.0.0.0/8 -j RETURN
-  iptables -t nat -C "$IPTABLES_CHAIN" -p tcp --dport 80 -j REDIRECT --to-ports "$HTTP_PORT" 2>/dev/null || iptables -t nat -A "$IPTABLES_CHAIN" -p tcp --dport 80 -j REDIRECT --to-ports "$HTTP_PORT"
-  iptables -t nat -C "$IPTABLES_CHAIN" -p tcp --dport 443 -j REDIRECT --to-ports "$HTTPS_PORT" 2>/dev/null || iptables -t nat -A "$IPTABLES_CHAIN" -p tcp --dport 443 -j REDIRECT --to-ports "$HTTPS_PORT"
+phys_if() { ip route show default 0.0.0.0/0 | awk '/default/ {print $5; exit}'; }
+phys_gw() { ip route show default 0.0.0.0/0 | awk '/default/ {print $3; exit}'; }
+
+tun_up() {
+  ip tuntap add dev "$TUN_DEV" mode tun 2>/dev/null || true
+  ip addr add "$TUN_CIDR" dev "$TUN_DEV" 2>/dev/null || true
+  ip link set dev "$TUN_DEV" up
 }
 
-iptables_disable() {
-  if ! iptables -t nat -L >/dev/null 2>&1; then
-    return
+tun_down() {
+  ip link set dev "$TUN_DEV" down 2>/dev/null || true
+  ip tuntap del dev "$TUN_DEV" mode tun 2>/dev/null || true
+}
+
+save_default_route() { ip route show default > "$ROUTE_FILE"; }
+restore_default_route() {
+  if [ -s "$ROUTE_FILE" ]; then
+    ip route del default 2>/dev/null || true
+    while read -r line; do ip route add "$line" || true; done < "$ROUTE_FILE"
   fi
-  if iptables -t nat -S OUTPUT | grep -q "$IPTABLES_CHAIN"; then
-    iptables -t nat -D OUTPUT -j "$IPTABLES_CHAIN" || true
-  fi
-  if iptables -t nat -S | grep -q "^-N $IPTABLES_CHAIN"; then
-    while iptables -t nat -S "$IPTABLES_CHAIN" | grep -q "^-A $IPTABLES_CHAIN"; do
-      local rule
-      rule="$(iptables -t nat -S "$IPTABLES_CHAIN" | grep "^-A $IPTABLES_CHAIN" | head -n1 | sed 's/^-A /-D /')"
-      read -r -a parts <<< "$rule"
-      iptables -t nat "${parts[@]}" || true
-    done
-    iptables -t nat -X "$IPTABLES_CHAIN" || true
+}
+
+routes_apply() {
+  local ifc gw uid
+  ifc="$(phys_if)"
+  gw="$(phys_gw)"
+  uid="$(id -u "$SQUID_USER")"
+  save_default_route
+  ip route del default 2>/dev/null || true
+  ip route add default via "$TUN_ADDR" dev "$TUN_DEV" metric 1
+  ip route add default via "$gw" dev "$ifc" metric 10
+  ip route flush table "$ROUTE_TABLE_BYPASS_ID" 2>/dev/null || true
+  ip route add table "$ROUTE_TABLE_BYPASS_ID" default via "$gw" dev "$ifc"
+  ip rule add uidrange "$uid-$uid" lookup "$ROUTE_TABLE_BYPASS_ID" 2>/dev/null || true
+}
+
+routes_revert() {
+  local uid
+  uid="$(id -u "$SQUID_USER")"
+  ip rule del uidrange "$uid-$uid" lookup "$ROUTE_TABLE_BYPASS_ID" 2>/dev/null || true
+  ip route flush table "$ROUTE_TABLE_BYPASS_ID" 2>/dev/null || true
+  ip route del default via "$TUN_ADDR" dev "$TUN_DEV" metric 1 2>/dev/null || true
+  restore_default_route
+}
+
+detect_arch() {
+  case "$(uname -m)" in
+    x86_64|amd64) echo linux-amd64 ;;
+    aarch64|arm64) echo linux-arm64 ;;
+    armv7l|armv7) echo linux-armv7 ;;
+    i386|i686) echo linux-386 ;;
+    *) echo linux-amd64 ;;
+  esac
+}
+
+download_t2s() {
+  if [ -x "$T2S_BIN" ]; then return; fi
+  local arch url z
+  arch="$(detect_arch)"
+  case "$arch" in
+    linux-amd64) z=tun2socks-linux-amd64.zip ;;
+    linux-arm64) z=tun2socks-linux-arm64.zip ;;
+    linux-armv7) z=tun2socks-linux-armv7.zip ;;
+    linux-386) z=tun2socks-linux-386.zip ;;
+    *) z=tun2socks-linux-amd64.zip ;;
+  esac
+  url="https://github.com/xjasonlyu/tun2socks/releases/download/${T2S_VERSION}/${z}"
+  curl -fsSL -o "$BASE_DIR/${z}" "$url"
+  unzip -qo "$BASE_DIR/${z}" -d "$BASE_DIR"
+  rm -f "$BASE_DIR/${z}"
+  chmod +x "$T2S_BIN"
+}
+
+t2s_start() {
+  local ifc
+  ifc="$(phys_if)"
+  nohup "$T2S_BIN" -device "$TUN_DEV" -proxy "http://127.0.0.1:${HTTP_PORT}" -interface "$ifc" >/dev/null 2>&1 &
+  echo $! > "$T2S_PID"
+}
+
+t2s_stop() {
+  if [ -f "$T2S_PID" ] && kill -0 "$(cat "$T2S_PID")" 2>/dev/null; then
+    kill "$(cat "$T2S_PID")" || true
+    rm -f "$T2S_PID"
   fi
 }
 
@@ -218,8 +279,11 @@ monitor_start() {
   nohup bash -c "
     while true; do
       if [ ! -f '$SQUID_PID' ] || ! kill -0 \$(cat '$SQUID_PID') 2>/dev/null; then
-        iptables_disable
-        untrust_ca
+        $0 stop
+        exit 0
+      fi
+      if [ -f '$T2S_PID' ] && ! kill -0 \$(cat '$T2S_PID') 2>/dev/null; then
+        $0 stop
         exit 0
       fi
       sleep 2
@@ -266,7 +330,10 @@ start() {
     sleep 1
     t=$((t+1))
   done
-  iptables_enable
+  tun_up
+  routes_apply
+  download_t2s
+  t2s_start
   monitor_start
   echo "started"
 }
@@ -274,7 +341,9 @@ start() {
 stop() {
   require_root
   monitor_stop
-  iptables_disable
+  t2s_stop
+  routes_revert
+  tun_down
   untrust_ca
   squid_stop
   stop_system_squid
