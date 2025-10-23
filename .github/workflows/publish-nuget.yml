@@ -183,7 +183,7 @@ jobs:
       - name: Push symbol packages
         env:
           NUGET_API_KEY: ${{ secrets.nuget_api_key }}
-          SOURCE: https://api.nuget.org/v3/index.json
+          SOURCE: ${{ inputs.source }}
         run: |
           set -euo pipefail
           shopt -s nullglob

@@ -100,3 +100,7 @@ squid-cache/cache.log
 squid-cache/*.deb
 squid-cache/squid-extracted/
 squid-cache/squid-common-extracted/
+
+**/__pycache__
+/scai/runtime
+.*/

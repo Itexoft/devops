@@ -5,7 +5,7 @@ This spec tells an LLM exactly how to format and shape C# code. Terms: MUST/SHOU
 ## Global
 - Language: C# (use the most modern syntax available).
 - Max line length: 140 characters. Hard wrap rules below respect this limit.
-- Do not prefix member names with underscores; rely on `this.` qualification for instance members instead.
+- Private instance fields and local helper variables MAY use a leading `_` to avoid collisions; `this.` qualification is optional when the underscore prefix is used.
 
 ## Expression-bodied members
 - Methods and operators: prefer expression-bodied form. Keep on a single line when possible. If multiple statements or the line would exceed 140, use a block body.
@@ -17,7 +17,7 @@ This spec tells an LLM exactly how to format and shape C# code. Terms: MUST/SHOU
 - Use target-typed `new` when the type is apparent from context.
 
 ## Qualification rules
-- Instance members (fields, properties, events, methods): always qualify with `this.`.
+- Instance members (fields, properties, events, methods): qualify with `this.` unless the member uses the permitted `_` prefix.
 - Static members of the current type: qualify with the containing type name (e.g., `TypeName.Member`).
 
 ## Modifiers order (exact sequence)

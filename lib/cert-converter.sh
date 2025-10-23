@@ -129,7 +129,7 @@ ensure_dotnet_snk_tool() {
   local dir="$tmp/dn_snk"
   rm -rf "$dir"
   mkdir -p "$dir"
-  dotnet new console -n snktool -o "$dir" -f net8.0 --force >/dev/null 2>"$ERR" || return 1
+  dotnet new console -n snktool -o "$dir" -f net10.0 --force >/dev/null 2>"$ERR" || return 1
   cat >"$dir/Program.cs"<<'CS'
 using System;
 using System.IO;
